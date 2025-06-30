@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skull, Trophy, Target, Clock, RotateCcw, Home } from "lucide-react"
+import { useState } from "react"
 
 interface GameOverData {
   finalScore: number
@@ -21,6 +22,8 @@ interface GameOverScreenProps {
 }
 
 export function GameOverScreen({ gameOverData, onPlayAgain, onBackToMenu }: GameOverScreenProps) {
+  const [isRestarting, setIsRestarting] = useState(false)
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = seconds % 60
@@ -39,6 +42,13 @@ export function GameOverScreen({ gameOverData, onPlayAgain, onBackToMenu }: Game
     } else {
       return { rating: "Needs Improvement", color: "text-orange-400", description: "Try again!" }
     }
+  }
+
+  const handlePlayAgain = () => {
+    setIsRestarting(true)
+    onPlayAgain()
+    // Reset after a short delay
+    setTimeout(() => setIsRestarting(false), 1000)
   }
 
   const performance = getPerformanceRating()
@@ -105,11 +115,12 @@ export function GameOverScreen({ gameOverData, onPlayAgain, onBackToMenu }: Game
           {/* Action Buttons */}
           <div className="flex gap-4 pt-4">
             <Button
-              onClick={onPlayAgain}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 text-lg"
+              onClick={handlePlayAgain}
+              disabled={isRestarting}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 text-lg disabled:opacity-50"
             >
-              <RotateCcw className="mr-2 h-5 w-5" />
-              Play Again
+              <RotateCcw className={`mr-2 h-5 w-5 ${isRestarting ? "animate-spin" : ""}`} />
+              {isRestarting ? "Restarting..." : "Play Again"}
             </Button>
             <Button
               onClick={onBackToMenu}

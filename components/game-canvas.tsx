@@ -44,6 +44,7 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [gameOverData, setGameOverData] = useState<GameOverData | null>(null)
   const [isGameOver, setIsGameOver] = useState(false)
+  const [gameKey, setGameKey] = useState(0) // Force re-render key
 
   const { socket, isConnected, sendMessage } = useWebSocket()
 
@@ -56,16 +57,24 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
     const canvas = canvasRef.current
     if (!canvas) return
 
+    // Clear any existing game engine
+    if (gameEngineRef.current) {
+      gameEngineRef.current.stop()
+      gameEngineRef.current = null
+    }
+
+    // Ensure canvas is properly sized
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
 
+    // Create new game engine
     const gameEngine = new GameEngine(canvas, {
       playerName,
       tankClass,
       gameMode,
       onStatsUpdate: (stats) => {
         setGameStats(stats)
-        setIsRegenerating(stats.health < stats.maxHealth)
+        setIsRegenerating(stats.health < stats.maxHealth && stats.health > 0)
       },
       onGameOver: handleGameOver,
     })
@@ -84,7 +93,7 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
     return () => {
       gameEngine.stop()
     }
-  }, [playerName, tankClass, gameMode, socket, handleGameOver])
+  }, [playerName, tankClass, gameMode, socket, handleGameOver, gameKey])
 
   useEffect(() => {
     const cleanup = initializeGame()
@@ -94,10 +103,10 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current
-      if (canvas) {
+      if (canvas && gameEngineRef.current) {
         canvas.width = window.innerWidth
         canvas.height = window.innerHeight
-        gameEngineRef.current?.handleResize()
+        gameEngineRef.current.handleResize()
       }
     }
 
@@ -117,7 +126,7 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
 
     const interval = setInterval(updateLeaderboard, 1000)
     return () => clearInterval(interval)
-  }, [isGameOver])
+  }, [isGameOver, gameKey])
 
   // Handle ESC key for game over screen
   useEffect(() => {
@@ -154,10 +163,31 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
   }
 
   const handlePlayAgain = () => {
+    // Reset all React state first
     setIsGameOver(false)
     setGameOverData(null)
-    // Reinitialize the game
-    initializeGame()
+    setGameStats({
+      score: 0,
+      level: 1,
+      kills: 0,
+      health: 1000,
+      maxHealth: 1000,
+    })
+    setIsRegenerating(false)
+    setLeaderboardData(null)
+
+    // Reset UI panels
+    setShowChat(false)
+    setShowUpgrades(false)
+    setShowLeaderboard(true)
+
+    // Force component re-render with new key
+    setGameKey((prev) => prev + 1)
+
+    // Use the game engine's restart method
+    if (gameEngineRef.current) {
+      gameEngineRef.current.restart()
+    }
   }
 
   const healthPercentage = (gameStats.health / gameStats.maxHealth) * 100
@@ -168,11 +198,14 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
   }
 
   return (
-    <div className="relative w-full h-screen bg-gray-800 overflow-hidden">
+    <div key={gameKey} className="relative w-full h-screen bg-gray-800 overflow-hidden">
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
-        style={{ background: "linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)" }}
+        style={{
+          background: "linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+          display: "block", // Ensure canvas is displayed
+        }}
       />
 
       {/* Game UI Overlay */}
@@ -312,7 +345,7 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
 
       {!isGameOver && showChat && (
         <div className="absolute bottom-20 left-4 pointer-events-auto">
-          <ChatPanel onSendMessage={handleChatMessage} />
+          <ChatPanel onSendMessage={handleChatMessage} onClose={() => setShowChat(false)} />
         </div>
       )}
 

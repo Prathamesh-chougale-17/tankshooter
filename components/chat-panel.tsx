@@ -19,9 +19,10 @@ interface ChatMessage {
 
 interface ChatPanelProps {
   onSendMessage: (message: string) => void
+  onClose?: () => void
 }
 
-export function ChatPanel({ onSendMessage }: ChatPanelProps) {
+export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -79,7 +80,12 @@ export function ChatPanel({ onSendMessage }: ChatPanelProps) {
       <CardHeader className="pb-2">
         <CardTitle className="text-white text-sm flex items-center justify-between">
           Chat
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-white/60 hover:text-white">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-white/60 hover:text-white hover:bg-white/10"
+            onClick={onClose}
+          >
             <X className="h-4 w-4" />
           </Button>
         </CardTitle>

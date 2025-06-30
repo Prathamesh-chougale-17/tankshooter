@@ -265,6 +265,7 @@ export class GameEngine {
   private botSpawnInterval = 2000
   private maxBots = 15
   private gameStartTime = 0
+  private animationFrameId: number | null = null
 
   constructor(canvas: HTMLCanvasElement, options: GameOptions) {
     this.canvas = canvas
@@ -327,7 +328,7 @@ export class GameEngine {
     const player: Tank = {
       id: this.playerId,
       name: this.options.playerName,
-      position: { x: 0, y: 0 },
+      position: { x: 0, y: 0 }, // Start at center
       rotation: 0,
       health: 1000,
       maxHealth: 1000,
@@ -453,33 +454,124 @@ export class GameEngine {
     // Stop all bots
     this.bots.clear()
 
+    // Cancel animation frame
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
+
     // Trigger game over callback
     this.options.onGameOver(gameOverData)
   }
 
+  public stop() {
+    this.isRunning = false
+    this.isGameOver = false
+
+    // Cancel animation frame
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId)
+      this.animationFrameId = null
+    }
+
+    // Clear all game state
+    this.gameState.tanks.clear()
+    this.gameState.bullets = []
+    this.bots.clear()
+
+    // Clear input state
+    this.keys.clear()
+    this.autoFire = false
+
+    // Reset timers
+    this.lastTime = 0
+    this.lastPlayerShot = 0
+    this.lastBotSpawn = 0
+    this.botSpawnTimer = 0
+  }
+
+  public restart() {
+    // Stop current game completely
+    this.stop()
+
+    // Reset all flags
+    this.isGameOver = false
+    this.isRunning = false
+
+    // Generate new player ID to ensure fresh start
+    this.playerId = Math.random().toString(36).substr(2, 9)
+
+    // Reset camera to center
+    this.camera = { x: 0, y: 0 }
+
+    // Reset mouse position to center of canvas
+    this.mouse = {
+      x: this.canvas.width / 2,
+      y: this.canvas.height / 2,
+    }
+
+    // Clear and reinitialize game state
+    this.gameState = {
+      tanks: new Map(),
+      bullets: [],
+      obstacles: [],
+      powerUps: [],
+    }
+
+    // Reinitialize player at center
+    this.initializePlayer()
+
+    // Ensure canvas is properly sized
+    this.canvas.width = window.innerWidth
+    this.canvas.height = window.innerHeight
+
+    // Clear canvas completely
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+
+    // Start the game fresh
+    this.start()
+  }
+
   public start() {
+    if (this.isRunning) return // Prevent multiple starts
+
     this.isRunning = true
     this.isGameOver = false
     this.gameStartTime = Date.now()
     this.botSpawnTimer = Date.now()
+    this.lastTime = 0 // Reset time tracking
+
+    // Ensure player is properly initialized and visible
+    const player = this.gameState.tanks.get(this.playerId)
+    if (player) {
+      // Reset player position to center
+      player.position = { x: 0, y: 0 }
+      player.health = player.maxHealth
+      this.updateStats(player)
+    }
+
+    // Reset camera to follow player
+    this.updateCamera()
 
     // Spawn initial wave of bots
     for (let i = 0; i < 6; i++) {
       setTimeout(() => {
-        const difficulty = this.getDynamicDifficulty()
-        this.spawnBot(difficulty)
+        if (this.isRunning && !this.isGameOver) {
+          const difficulty = this.getDynamicDifficulty()
+          this.spawnBot(difficulty)
+        }
       }, i * 500)
     }
 
-    this.gameLoop(0)
-  }
-
-  public stop() {
-    this.isRunning = false
+    // Start game loop
+    this.gameLoop(performance.now())
   }
 
   private gameLoop(currentTime: number) {
-    if (!this.isRunning || this.isGameOver) return
+    if (!this.isRunning || this.isGameOver) {
+      this.animationFrameId = null
+      return
+    }
 
     const deltaTime = currentTime - this.lastTime
     this.lastTime = currentTime
@@ -487,7 +579,7 @@ export class GameEngine {
     this.update(deltaTime)
     this.render()
 
-    requestAnimationFrame((time) => this.gameLoop(time))
+    this.animationFrameId = requestAnimationFrame((time) => this.gameLoop(time))
   }
 
   private update(deltaTime: number) {
@@ -689,7 +781,7 @@ export class GameEngine {
     const player = this.gameState.tanks.get(this.playerId)
     if (!player) return
 
-    // Smooth camera follow
+    // Smooth camera follow - center player on screen
     const targetX = -player.position.x + this.canvas.width / 2
     const targetY = -player.position.y + this.canvas.height / 2
 
@@ -726,7 +818,10 @@ export class GameEngine {
   }
 
   private render() {
-    // Clear canvas
+    // Clear canvas completely
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+
+    // Fill with background color
     this.ctx.fillStyle = "#1a1a2e"
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
 
@@ -864,7 +959,17 @@ export class GameEngine {
   }
 
   public handleResize() {
-    // Handle canvas resize
+    // Update canvas size
+    this.canvas.width = window.innerWidth
+    this.canvas.height = window.innerHeight
+
+    // Update mouse position to center if not set
+    if (this.mouse.x === 0 && this.mouse.y === 0) {
+      this.mouse = {
+        x: this.canvas.width / 2,
+        y: this.canvas.height / 2,
+      }
+    }
   }
 
   public handleServerMessage(data: any) {
