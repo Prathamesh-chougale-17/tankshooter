@@ -1,91 +1,163 @@
-"use client"
-
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { GameCanvas } from "@/components/game-canvas"
-import { Gamepad2, Users, Trophy, Settings } from "lucide-react"
+"use client";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GameCanvas } from "@/components/game-canvas";
+import { Gamepad2, Users, Trophy, Settings } from "lucide-react";
 
 export default function HomePage() {
-  const [gameState, setGameState] = useState<"menu" | "game">("menu")
-  const [playerName, setPlayerName] = useState("")
-  const [selectedTankClass, setSelectedTankClass] = useState("basic")
-  const [gameMode, setGameMode] = useState("ffa")
+  const [gameState, setGameState] = useState<"menu" | "game">("menu");
+  const [playerName, setPlayerName] = useState("");
+  const [selectedTankClass, setSelectedTankClass] = useState("basic");
+  const [gameMode, setGameMode] = useState("ffa");
 
   const tankClasses = [
-    { id: "basic", name: "Basic Tank", description: "Balanced stats, good for beginners" },
+    {
+      id: "basic",
+      name: "Basic Tank",
+      description: "Balanced stats, good for beginners",
+    },
     { id: "twin", name: "Twin", description: "Dual cannons, faster fire rate" },
     { id: "sniper", name: "Sniper", description: "Long range, high damage" },
-    { id: "machine-gun", name: "Machine Gun", description: "Rapid fire, lower damage" },
-  ]
+    {
+      id: "machine-gun",
+      name: "Machine Gun",
+      description: "Rapid fire, lower damage",
+    },
+  ];
 
   const gameModes = [
-    { id: "ffa", name: "Free For All", description: "Every tank for themselves" },
-    { id: "team", name: "Team Deathmatch", description: "2 teams battle for supremacy" },
-    { id: "domination", name: "Domination", description: "Control the dominators" },
-  ]
+    {
+      id: "ffa",
+      name: "Free For All",
+      description: "Every tank for themselves",
+    },
+    {
+      id: "team",
+      name: "Team Deathmatch",
+      description: "2 teams battle for supremacy",
+    },
+    {
+      id: "domination",
+      name: "Domination",
+      description: "Control the dominators",
+    },
+  ];
 
   const startGame = () => {
     if (playerName.trim()) {
-      setGameState("game")
+      setGameState("game");
     }
-  }
+  };
 
   const backToMenu = () => {
-    setGameState("menu")
-  }
+    setGameState("menu");
+  };
 
   if (gameState === "game") {
     return (
-      <GameCanvas playerName={playerName} tankClass={selectedTankClass} gameMode={gameMode} onBackToMenu={backToMenu} />
-    )
+      <GameCanvas
+        playerName={playerName}
+        tankClass={selectedTankClass}
+        gameMode={gameMode}
+        onBackToMenu={backToMenu}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      {/* Animated background elements */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Enhanced animated background */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 left-20 w-4 h-4 bg-yellow-400 rounded-full animate-pulse"></div>
-        <div className="absolute top-40 right-32 w-6 h-6 bg-blue-400 rounded-full animate-bounce"></div>
-        <div className="absolute bottom-32 left-40 w-5 h-5 bg-green-400 rounded-full animate-ping"></div>
-        <div className="absolute bottom-20 right-20 w-3 h-3 bg-red-400 rounded-full animate-pulse"></div>
+        {/* Floating particles */}
+        <div className="absolute top-20 left-20 w-3 h-3 bg-yellow-400/60 rounded-full animate-pulse shadow-lg shadow-yellow-400/30"></div>
+        <div className="absolute top-40 right-32 w-4 h-4 bg-blue-400/60 rounded-full animate-bounce shadow-lg shadow-blue-400/30"></div>
+        <div className="absolute bottom-32 left-40 w-2 h-2 bg-green-400/60 rounded-full animate-ping shadow-lg shadow-green-400/30"></div>
+        <div className="absolute bottom-20 right-20 w-3 h-3 bg-red-400/60 rounded-full animate-pulse shadow-lg shadow-red-400/30"></div>
+        <div className="absolute top-1/3 left-1/4 w-2 h-2 bg-purple-400/40 rounded-full animate-bounce delay-300"></div>
+        <div className="absolute top-2/3 right-1/4 w-3 h-3 bg-cyan-400/40 rounded-full animate-ping delay-500"></div>
+
+        {/* Grid overlay */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGRlZnM+CjxwYXR0ZXJuIGlkPSJncmlkIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgo8cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMDMpIiBzdHJva2Utd2lkdGg9IjEiLz4KPC9wYXR0ZXJuPgo8L2RlZnM+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0idXJsKCNncmlkKSIgLz4KPHN2Zz4K')] opacity-30"></div>
+
+        {/* Gradient orbs */}
+        <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
+        <div className="absolute bottom-10 left-10 w-24 h-24 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-xl animate-pulse delay-700"></div>
       </div>
 
-      <Card className="w-full max-w-2xl bg-black/20 backdrop-blur-sm border-purple-500/30">
-        <CardHeader className="text-center">
-          <CardTitle className="text-6xl font-bold text-white mb-4 tracking-wider">
-            DIEP<span className="text-purple-400">.IO</span>
+      <Card className="w-full max-w-2xl bg-black/30 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-purple-500/10 relative overflow-hidden group animate-slide-up">
+        {/* Card glow effect */}
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+        <CardHeader className="text-center relative z-10">
+          <CardTitle className="text-6xl font-bold mb-4 tracking-wider bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent animate-glow">
+            Tank{" "}
+            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Shooter
+            </span>
           </CardTitle>
-          <p className="text-gray-300">Multiplayer Tank Battle Arena</p>
+          <p className="text-gray-300 text-lg font-medium animate-fade-in">
+            Multiplayer Tank Battle Arena
+          </p>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-white font-medium">Player Name</label>
+        <CardContent className="space-y-8 relative z-10">
+          <div
+            className="space-y-3 group animate-fade-in"
+            style={{ animationDelay: "0.2s", animationFillMode: "both" }}
+          >
+            <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-gradient-to-r from-yellow-400 to-orange-400"></div>
+              Player Name
+            </label>
             <Input
               placeholder="Enter your name..."
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="bg-white/10 border-purple-500/30 text-white placeholder:text-gray-400"
+              className="bg-white/10 border-purple-500/30 text-white placeholder:text-gray-400 h-12 text-lg backdrop-blur-sm hover:bg-white/15 focus:bg-white/20 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg"
               maxLength={20}
             />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-white font-medium">Tank Class</label>
-              <Select value={selectedTankClass} onValueChange={setSelectedTankClass}>
-                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white">
-                  <SelectValue />
+          <div
+            className="flex justify-between animate-fade-in"
+            style={{ animationDelay: "0.4s", animationFillMode: "both" }}
+          >
+            <div className="flex-1 space-y-3 group">
+              <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-gradient-to-r from-purple-400 to-blue-400"></div>
+                Tank Class
+              </label>
+              <Select
+                value={selectedTankClass}
+                onValueChange={setSelectedTankClass}
+              >
+                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
+                  <SelectValue placeholder="Choose your tank..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
                   {tankClasses.map((tank) => (
-                    <SelectItem key={tank.id} value={tank.id}>
-                      <div>
-                        <div className="font-medium">{tank.name}</div>
-                        <div className="text-sm text-gray-500">{tank.description}</div>
+                    <SelectItem
+                      key={tank.id}
+                      value={tank.id}
+                      className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5"
+                    >
+                      <div className="py-2 px-1">
+                        <div className="font-semibold text-white flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-blue-400"></div>
+                          {tank.name}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1 ml-4">
+                          {tank.description}
+                        </div>
                       </div>
                     </SelectItem>
                   ))}
@@ -93,18 +165,30 @@ export default function HomePage() {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-white font-medium">Game Mode</label>
+            <div className="flex-1 space-y-3 group">
+              <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-blue-400"></div>
+                Game Mode
+              </label>
               <Select value={gameMode} onValueChange={setGameMode}>
-                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white">
-                  <SelectValue />
+                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
+                  <SelectValue placeholder="Select game mode..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
                   {gameModes.map((mode) => (
-                    <SelectItem key={mode.id} value={mode.id}>
-                      <div>
-                        <div className="font-medium">{mode.name}</div>
-                        <div className="text-sm text-gray-500">{mode.description}</div>
+                    <SelectItem
+                      key={mode.id}
+                      value={mode.id}
+                      className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5"
+                    >
+                      <div className="py-2 px-1">
+                        <div className="font-semibold text-white flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-gradient-to-r from-green-400 to-blue-400"></div>
+                          {mode.name}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1 ml-4">
+                          {mode.description}
+                        </div>
                       </div>
                     </SelectItem>
                   ))}
@@ -113,34 +197,61 @@ export default function HomePage() {
             </div>
           </div>
 
-          <Button
-            onClick={startGame}
-            disabled={!playerName.trim()}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 text-lg"
+          <div
+            className="animate-fade-in"
+            style={{ animationDelay: "0.6s", animationFillMode: "both" }}
           >
-            <Gamepad2 className="mr-2 h-5 w-5" />
-            Start Game
-          </Button>
+            <Button
+              onClick={startGame}
+              disabled={!playerName.trim()}
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-6 text-2xl rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group relative overflow-hidden min-h-[80px]"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+              <Gamepad2 className="mr-4 h-8 w-8 relative z-10" />
+              <span className="relative z-10">Start Game</span>
+            </Button>
+          </div>
 
-          <div className="grid grid-cols-3 gap-4 pt-4">
-            <div className="text-center text-white">
-              <Users className="h-8 w-8 mx-auto mb-2 text-blue-400" />
-              <div className="text-sm">Online Players</div>
-              <div className="text-xl font-bold">1,247</div>
+          <div
+            className="grid grid-cols-3 gap-6 pt-6 animate-fade-in"
+            style={{ animationDelay: "0.8s", animationFillMode: "both" }}
+          >
+            <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl p-4 backdrop-blur-sm border border-blue-500/30 group-hover:border-blue-400/50 group-hover:shadow-lg group-hover:shadow-blue-500/20">
+                <Users className="h-10 w-10 mx-auto mb-3 text-blue-400 group-hover:text-blue-300 transition-colors duration-300" />
+                <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+                  Online Players
+                </div>
+                <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                  1,247
+                </div>
+              </div>
             </div>
-            <div className="text-center text-white">
-              <Trophy className="h-8 w-8 mx-auto mb-2 text-yellow-400" />
-              <div className="text-sm">Active Games</div>
-              <div className="text-xl font-bold">89</div>
+            <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+              <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 backdrop-blur-sm border border-yellow-500/30 group-hover:border-yellow-400/50 group-hover:shadow-lg group-hover:shadow-yellow-500/20">
+                <Trophy className="h-10 w-10 mx-auto mb-3 text-yellow-400 group-hover:text-yellow-300 transition-colors duration-300" />
+                <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+                  Active Games
+                </div>
+                <div className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+                  89
+                </div>
+              </div>
             </div>
-            <div className="text-center text-white">
-              <Settings className="h-8 w-8 mx-auto mb-2 text-green-400" />
-              <div className="text-sm">Servers</div>
-              <div className="text-xl font-bold">12</div>
+            <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+              <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-4 backdrop-blur-sm border border-green-500/30 group-hover:border-green-400/50 group-hover:shadow-lg group-hover:shadow-green-500/20">
+                <Settings className="h-10 w-10 mx-auto mb-3 text-green-400 group-hover:text-green-300 transition-colors duration-300" />
+                <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+                  Servers
+                </div>
+                <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                  12
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

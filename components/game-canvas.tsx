@@ -1,71 +1,96 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { useWebSocket } from "@/hooks/use-websocket"
-import { GameEngine } from "@/lib/game-engine"
-import { ChatPanel } from "@/components/chat-panel"
-import { UpgradePanel } from "@/components/upgrade-panel"
-import { Leaderboard } from "@/components/leaderboard"
-import { GameOverScreen } from "@/components/game-over-screen"
-import { ArrowLeft, MessageCircle, TrendingUp, Trophy, Heart } from "lucide-react"
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useWebSocket } from "@/hooks/use-websocket";
+import { GameEngine } from "@/lib/game-engine";
+import { ChatPanel } from "@/components/chat-panel";
+import { UpgradePanel } from "@/components/upgrade-panel";
+import { Leaderboard } from "@/components/leaderboard";
+import { GameOverScreen } from "@/components/game-over-screen";
+import {
+  ArrowLeft,
+  MessageCircle,
+  TrendingUp,
+  Trophy,
+  Heart,
+} from "lucide-react";
+
+interface Tank {
+  id: string;
+  name: string;
+  score: number;
+  level: number;
+  kills: number;
+}
 
 interface GameCanvasProps {
-  playerName: string
-  tankClass: string
-  gameMode: string
-  onBackToMenu: () => void
+  playerName: string;
+  tankClass: string;
+  gameMode: string;
+  onBackToMenu: () => void;
 }
 
 interface GameOverData {
-  finalScore: number
-  finalLevel: number
-  totalKills: number
-  survivalTime: number
-  cause: string
-  killedBy?: string
+  finalScore: number;
+  finalLevel: number;
+  totalKills: number;
+  survivalTime: number;
+  cause: string;
+  killedBy?: string;
 }
 
-export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: GameCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const gameEngineRef = useRef<GameEngine | null>(null)
-  const [showChat, setShowChat] = useState(false)
-  const [showUpgrades, setShowUpgrades] = useState(false)
-  const [showLeaderboard, setShowLeaderboard] = useState(true)
+export function GameCanvas({
+  playerName,
+  tankClass,
+  gameMode,
+  onBackToMenu,
+}: GameCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameEngineRef = useRef<GameEngine | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  const [showUpgrades, setShowUpgrades] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(true);
   const [gameStats, setGameStats] = useState({
     score: 0,
     level: 1,
     kills: 0,
     health: 1000,
     maxHealth: 1000,
-  })
-  const [leaderboardData, setLeaderboardData] = useState<any>(null)
-  const [isRegenerating, setIsRegenerating] = useState(false)
-  const [gameOverData, setGameOverData] = useState<GameOverData | null>(null)
-  const [isGameOver, setIsGameOver] = useState(false)
-  const [gameKey, setGameKey] = useState(0) // Force re-render key
+  });
+  const [leaderboardData, setLeaderboardData] = useState<
+    | {
+        tanks: Map<string, Tank>;
+        playerId: string;
+      }
+    | undefined
+  >(undefined);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [gameOverData, setGameOverData] = useState<GameOverData | null>(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const gameKey = 0; // Static key since we don't need re-rendering
 
-  const { socket, isConnected, sendMessage } = useWebSocket()
+  const { socket, isConnected, sendMessage } = useWebSocket();
 
   const handleGameOver = useCallback((data: GameOverData) => {
-    setGameOverData(data)
-    setIsGameOver(true)
-  }, [])
+    setGameOverData(data);
+    setIsGameOver(true);
+  }, []);
 
   const initializeGame = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     // Clear any existing game engine
     if (gameEngineRef.current) {
-      gameEngineRef.current.stop()
-      gameEngineRef.current = null
+      gameEngineRef.current.stop();
+      gameEngineRef.current = null;
     }
 
     // Ensure canvas is properly sized
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
     // Create new game engine
     const gameEngine = new GameEngine(canvas, {
@@ -73,137 +98,133 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
       tankClass,
       gameMode,
       onStatsUpdate: (stats) => {
-        setGameStats(stats)
-        setIsRegenerating(stats.health < stats.maxHealth && stats.health > 0)
+        setGameStats(stats);
+        setIsRegenerating(stats.health < stats.maxHealth && stats.health > 0);
       },
       onGameOver: handleGameOver,
-    })
+    });
 
-    gameEngineRef.current = gameEngine
-    gameEngine.start()
+    gameEngineRef.current = gameEngine;
+    gameEngine.start();
 
     // Handle WebSocket messages
     if (socket) {
       socket.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        gameEngine.handleServerMessage(data)
-      }
+        const data = JSON.parse(event.data);
+        gameEngine.handleServerMessage(data);
+      };
     }
 
     return () => {
-      gameEngine.stop()
-    }
-  }, [playerName, tankClass, gameMode, socket, handleGameOver, gameKey])
+      gameEngine.stop();
+    };
+  }, [playerName, tankClass, gameMode, socket, handleGameOver]);
 
   useEffect(() => {
-    const cleanup = initializeGame()
-    return cleanup
-  }, [initializeGame])
+    const cleanup = initializeGame();
+    return cleanup;
+  }, [initializeGame]);
 
   useEffect(() => {
     const handleResize = () => {
-      const canvas = canvasRef.current
+      const canvas = canvasRef.current;
       if (canvas && gameEngineRef.current) {
-        canvas.width = window.innerWidth
-        canvas.height = window.innerHeight
-        gameEngineRef.current.handleResize()
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gameEngineRef.current.handleResize();
       }
-    }
+    };
 
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     const updateLeaderboard = () => {
       if (gameEngineRef.current && !isGameOver) {
         setLeaderboardData({
           tanks: gameEngineRef.current.getGameState().tanks,
-          playerId: gameEngineRef.current.playerId,
-        })
+          playerId: gameEngineRef.current.getPlayerId(),
+        });
       }
-    }
+    };
 
-    const interval = setInterval(updateLeaderboard, 1000)
-    return () => clearInterval(interval)
-  }, [isGameOver, gameKey])
+    const interval = setInterval(updateLeaderboard, 1000);
+    return () => clearInterval(interval);
+  }, [isGameOver, gameKey]);
 
   // Handle ESC key for game over screen
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isGameOver) {
-        onBackToMenu()
+        onBackToMenu();
       }
-    }
+    };
 
-    window.addEventListener("keydown", handleKeyPress)
-    return () => window.removeEventListener("keydown", handleKeyPress)
-  }, [isGameOver, onBackToMenu])
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [isGameOver, onBackToMenu]);
 
   const handleUpgrade = (upgradeType: string) => {
-    if (isGameOver) return
+    if (isGameOver) return;
 
-    gameEngineRef.current?.upgradePlayer(upgradeType)
+    gameEngineRef.current?.upgradePlayer(upgradeType);
     sendMessage({
       type: "upgrade",
       upgradeType,
-      playerId: gameEngineRef.current?.playerId,
-    })
-  }
+      playerId: gameEngineRef.current?.getPlayerId(),
+    });
+  };
 
   const handleChatMessage = (message: string) => {
-    if (isGameOver) return
+    if (isGameOver) return;
 
     sendMessage({
       type: "chat",
       message,
       playerName,
-      playerId: gameEngineRef.current?.playerId,
-    })
-  }
+      playerId: gameEngineRef.current?.getPlayerId(),
+    });
+  };
 
   const handlePlayAgain = () => {
     // Reset all React state first
-    setIsGameOver(false)
-    setGameOverData(null)
+    setIsGameOver(false);
+    setGameOverData(null);
     setGameStats({
       score: 0,
       level: 1,
       kills: 0,
       health: 1000,
       maxHealth: 1000,
-    })
-    setIsRegenerating(false)
-    setLeaderboardData(null)
+    });
+    setIsRegenerating(false);
+    setLeaderboardData(undefined);
 
     // Reset UI panels
-    setShowChat(false)
-    setShowUpgrades(false)
-    setShowLeaderboard(true)
+    setShowChat(false);
+    setShowUpgrades(false);
+    setShowLeaderboard(true);
 
-    // Force component re-render with new key
-    setGameKey((prev) => prev + 1)
-
-    // Use the game engine's restart method
+    // Use the game engine's restart method WITHOUT changing gameKey
     if (gameEngineRef.current) {
-      gameEngineRef.current.restart()
+      gameEngineRef.current.restart();
     }
-  }
+  };
 
-  const healthPercentage = (gameStats.health / gameStats.maxHealth) * 100
-
-  // Show game over screen if game is over
-  if (isGameOver && gameOverData) {
-    return <GameOverScreen gameOverData={gameOverData} onPlayAgain={handlePlayAgain} onBackToMenu={onBackToMenu} />
-  }
+  const healthPercentage = (gameStats.health / gameStats.maxHealth) * 100;
 
   return (
-    <div key={gameKey} className="relative w-full h-screen bg-gray-800 overflow-hidden">
+    <div
+      key={gameKey}
+      className="relative w-full h-screen bg-gray-800 overflow-hidden"
+    >
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
         style={{
-          background: "linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+          background:
+            "linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
           display: "block", // Ensure canvas is displayed
         }}
       />
@@ -274,15 +295,21 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
 
         {/* Enhanced Health Bar */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 pointer-events-auto">
-          <Card className={`bg-black/50 border-white/20 px-6 py-3 ${gameStats.health <= 0 ? "border-red-500/50" : ""}`}>
+          <Card
+            className={`bg-black/50 border-white/20 px-6 py-3 ${
+              gameStats.health <= 0 ? "border-red-500/50" : ""
+            }`}
+          >
             <div className="text-white text-center mb-2 flex items-center justify-center gap-2">
               <span className="text-sm">{playerName}</span>
-              {isRegenerating && healthPercentage < 100 && healthPercentage > 0 && (
-                <div className="flex items-center gap-1 text-green-400">
-                  <Heart className="h-3 w-3 animate-pulse" />
-                  <span className="text-xs">Regenerating...</span>
-                </div>
-              )}
+              {isRegenerating &&
+                healthPercentage < 100 &&
+                healthPercentage > 0 && (
+                  <div className="flex items-center gap-1 text-green-400">
+                    <Heart className="h-3 w-3 animate-pulse" />
+                    <span className="text-xs">Regenerating...</span>
+                  </div>
+                )}
               {gameStats.health <= 0 && (
                 <div className="flex items-center gap-1 text-red-400">
                   <span className="text-xs font-bold">DESTROYED</span>
@@ -295,13 +322,15 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
                   healthPercentage > 75
                     ? "bg-gradient-to-r from-green-400 to-green-500"
                     : healthPercentage > 50
-                      ? "bg-gradient-to-r from-yellow-400 to-green-400"
-                      : healthPercentage > 25
-                        ? "bg-gradient-to-r from-orange-400 to-yellow-400"
-                        : healthPercentage > 0
-                          ? "bg-gradient-to-r from-red-500 to-orange-400"
-                          : "bg-gray-600"
-                } ${isRegenerating && healthPercentage > 0 ? "animate-pulse" : ""}`}
+                    ? "bg-gradient-to-r from-yellow-400 to-green-400"
+                    : healthPercentage > 25
+                    ? "bg-gradient-to-r from-orange-400 to-yellow-400"
+                    : healthPercentage > 0
+                    ? "bg-gradient-to-r from-red-500 to-orange-400"
+                    : "bg-gray-600"
+                } ${
+                  isRegenerating && healthPercentage > 0 ? "animate-pulse" : ""
+                }`}
                 style={{ width: `${Math.max(0, healthPercentage)}%` }}
               />
             </div>
@@ -310,7 +339,9 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
                 {Math.max(0, gameStats.health)} / {gameStats.maxHealth}
               </span>
               {healthPercentage < 100 && healthPercentage > 0 && (
-                <span className="text-xs text-gray-400">(Stop shooting to regenerate)</span>
+                <span className="text-xs text-gray-400">
+                  (Stop shooting to regenerate)
+                </span>
               )}
             </div>
           </Card>
@@ -345,7 +376,10 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
 
       {!isGameOver && showChat && (
         <div className="absolute bottom-20 left-4 pointer-events-auto">
-          <ChatPanel onSendMessage={handleChatMessage} onClose={() => setShowChat(false)} />
+          <ChatPanel
+            onSendMessage={handleChatMessage}
+            onClose={() => setShowChat(false)}
+          />
         </div>
       )}
 
@@ -354,7 +388,9 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
         <div className="absolute bottom-4 right-4 pointer-events-auto">
           <Card className="bg-black/50 border-white/20 p-3">
             <div className="text-white text-xs space-y-1">
-              <div className="font-semibold text-purple-300 mb-2">Controls:</div>
+              <div className="font-semibold text-purple-300 mb-2">
+                Controls:
+              </div>
               <div>
                 <strong>WASD:</strong> Move
               </div>
@@ -389,6 +425,16 @@ export function GameCanvas({ playerName, tankClass, gameMode, onBackToMenu }: Ga
           </Card>
         </div>
       )}
+
+      {/* Game Over Dialog Overlay */}
+      {gameOverData && (
+        <GameOverScreen
+          gameOverData={gameOverData}
+          onPlayAgain={handlePlayAgain}
+          onBackToMenu={onBackToMenu}
+          open={isGameOver}
+        />
+      )}
     </div>
-  )
+  );
 }
