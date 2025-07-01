@@ -7,8 +7,16 @@ import {
 export function useWalletUiSigner() {
   const { account, cluster } = useWalletUi();
 
-  return useWalletAccountTransactionSendingSigner(
+  // Always call the hook, but with safe fallbacks
+  const signer = useWalletAccountTransactionSendingSigner(
     account as UiWalletAccount,
-    cluster.id
+    cluster?.id || "mainnet-beta"
   );
+
+  // Return null if wallet is not connected
+  if (!account || !cluster) {
+    return null;
+  }
+
+  return signer;
 }

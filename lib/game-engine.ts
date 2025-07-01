@@ -47,6 +47,7 @@ interface PlayerStats {
   kills: number;
   health: number;
   maxHealth: number;
+  isRegenerating: boolean;
 }
 
 interface GameState {
@@ -62,6 +63,8 @@ interface GameOptions {
   gameMode: string;
   onStatsUpdate: (stats: PlayerStats) => void;
   onGameOver: (gameOverData: GameOverData) => void;
+  sendMessage?: (message: { type: string; [key: string]: unknown }) => void;
+  enableBots?: boolean;
 }
 
 interface GameOverData {
@@ -91,10 +94,30 @@ interface ServerMessage {
 class AIBot {
   private bot: Bot;
   private gameState: GameState;
+  private worldBounds: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    width: number;
+    height: number;
+  };
 
-  constructor(bot: Bot, gameState: GameState) {
+  constructor(
+    bot: Bot,
+    gameState: GameState,
+    worldBounds: {
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+      width: number;
+      height: number;
+    }
+  ) {
     this.bot = bot;
     this.gameState = gameState;
+    this.worldBounds = worldBounds;
   }
 
   update(deltaTime: number) {
@@ -137,10 +160,12 @@ class AIBot {
   }
 
   private shouldAvoidBoundary(): boolean {
-    const boundary = 1500;
+    const margin = 100; // Stay 100 units away from boundary
     return (
-      Math.abs(this.bot.position.x) > boundary ||
-      Math.abs(this.bot.position.y) > boundary
+      this.bot.position.x <= this.worldBounds.minX + margin ||
+      this.bot.position.x >= this.worldBounds.maxX - margin ||
+      this.bot.position.y <= this.worldBounds.minY + margin ||
+      this.bot.position.y >= this.worldBounds.maxY - margin
     );
   }
 
@@ -174,21 +199,67 @@ class AIBot {
     if (distance > 0) {
       // Move towards target but maintain some distance
       const minDistance = 150;
+      let newX: number, newY: number;
+
       if (distance > minDistance) {
-        this.bot.position.x += (dx / distance) * moveDistance;
-        this.bot.position.y += (dy / distance) * moveDistance;
+        newX = this.bot.position.x + (dx / distance) * moveDistance;
+        newY = this.bot.position.y + (dy / distance) * moveDistance;
       } else {
         // Circle around target
         const angle = Math.atan2(dy, dx) + Math.PI / 2;
-        this.bot.position.x += Math.cos(angle) * moveDistance * 0.5;
-        this.bot.position.y += Math.sin(angle) * moveDistance * 0.5;
+        newX = this.bot.position.x + Math.cos(angle) * moveDistance * 0.5;
+        newY = this.bot.position.y + Math.sin(angle) * moveDistance * 0.5;
       }
+
+      // Check boundaries before moving
+      if (newX >= this.worldBounds.minX && newX <= this.worldBounds.maxX) {
+        this.bot.position.x = newX;
+      }
+
+      if (newY >= this.worldBounds.minY && newY <= this.worldBounds.maxY) {
+        this.bot.position.y = newY;
+      }
+
+      // Ensure bot stays within bounds
+      this.bot.position.x = Math.max(
+        this.worldBounds.minX,
+        Math.min(this.worldBounds.maxX, this.bot.position.x)
+      );
+      this.bot.position.y = Math.max(
+        this.worldBounds.minY,
+        Math.min(this.worldBounds.maxY, this.bot.position.y)
+      );
     }
   }
 
   private wanderMovement(moveDistance: number) {
-    this.bot.position.x += this.bot.moveDirection.x * moveDistance;
-    this.bot.position.y += this.bot.moveDirection.y * moveDistance;
+    const newX = this.bot.position.x + this.bot.moveDirection.x * moveDistance;
+    const newY = this.bot.position.y + this.bot.moveDirection.y * moveDistance;
+
+    // Check boundaries and adjust position
+    if (newX >= this.worldBounds.minX && newX <= this.worldBounds.maxX) {
+      this.bot.position.x = newX;
+    } else {
+      // Reverse X direction when hitting boundary
+      this.bot.moveDirection.x *= -1;
+    }
+
+    if (newY >= this.worldBounds.minY && newY <= this.worldBounds.maxY) {
+      this.bot.position.y = newY;
+    } else {
+      // Reverse Y direction when hitting boundary
+      this.bot.moveDirection.y *= -1;
+    }
+
+    // Ensure bot stays within bounds
+    this.bot.position.x = Math.max(
+      this.worldBounds.minX,
+      Math.min(this.worldBounds.maxX, this.bot.position.x)
+    );
+    this.bot.position.y = Math.max(
+      this.worldBounds.minY,
+      Math.min(this.worldBounds.maxY, this.bot.position.y)
+    );
   }
 
   private updateTargeting() {
@@ -301,6 +372,12 @@ export class GameEngine {
   private gameState: GameState;
   private playerId: string;
   private options: GameOptions;
+  private enableBots: boolean;
+  private sendMessage:
+    | ((message: { type: string; [key: string]: unknown }) => void)
+    | null = null;
+  private lastMultiplayerUpdate = 0;
+  private multiplayerUpdateInterval = 50; // Send updates every 50ms (20 FPS)
   private keys: Set<string> = new Set();
   private mouse: Vector2 = { x: 0, y: 0 };
   private camera: Vector2 = { x: 0, y: 0 };
@@ -311,6 +388,8 @@ export class GameEngine {
   private bots: Map<string, AIBot> = new Map();
   private lastBotSpawn = 0;
   private lastPlayerShot = 0;
+  private lastFireTime = 0; // Add fire rate limiting
+  private fireRate = 300; // Milliseconds between shots (3.33 shots per second)
   private healthRegenCooldown = 3000;
   private botSpawnTimer = 0;
   private botSpawnInterval = 2000;
@@ -318,10 +397,22 @@ export class GameEngine {
   private gameStartTime = 0;
   private animationFrameId: number | null = null;
 
+  // World boundaries
+  private worldBounds = {
+    minX: -2000,
+    maxX: 2000,
+    minY: -2000,
+    maxY: 2000,
+    width: 4000,
+    height: 4000,
+  };
+
   constructor(canvas: HTMLCanvasElement, options: GameOptions) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
     this.options = options;
+    this.enableBots = options.enableBots !== false; // Default to true unless explicitly disabled
+    this.sendMessage = options.sendMessage || null;
     this.playerId = Math.random().toString(36).substr(2, 9);
 
     this.gameState = {
@@ -333,6 +424,39 @@ export class GameEngine {
 
     this.setupEventListeners();
     this.initializePlayer();
+
+    // Send join message to server
+    if (this.sendMessage) {
+      this.sendMessage({
+        type: "join",
+        playerId: this.playerId,
+        playerName: this.options.playerName,
+        tankClass: this.options.tankClass,
+        gameMode: this.options.gameMode,
+      });
+    }
+  }
+
+  private sendToServer(message: { type: string; [key: string]: unknown }) {
+    if (this.sendMessage) {
+      this.sendMessage(message);
+    }
+  }
+
+  private sendPlayerUpdate() {
+    const player = this.gameState.tanks.get(this.playerId);
+    if (player) {
+      this.sendToServer({
+        type: "playerUpdate",
+        playerId: this.playerId,
+        position: player.position,
+        rotation: player.rotation,
+        health: player.health,
+        score: player.score,
+        level: player.level,
+        kills: player.kills,
+      });
+    }
   }
 
   private setupEventListeners() {
@@ -415,14 +539,31 @@ export class GameEngine {
       "Sentinel",
     ];
 
-    // Spawn bot away from player
+    // Spawn bot within world boundaries
     const player = this.gameState.tanks.get(this.playerId);
-    const spawnDistance = 400 + Math.random() * 600;
-    const spawnAngle = Math.random() * Math.PI * 2;
-    const spawnX =
-      (player?.position.x || 0) + Math.cos(spawnAngle) * spawnDistance;
-    const spawnY =
-      (player?.position.y || 0) + Math.sin(spawnAngle) * spawnDistance;
+    let spawnX: number, spawnY: number;
+
+    if (player) {
+      // Try to spawn away from player but within bounds
+      const spawnDistance = 400 + Math.random() * 600;
+      const spawnAngle = Math.random() * Math.PI * 2;
+      spawnX = player.position.x + Math.cos(spawnAngle) * spawnDistance;
+      spawnY = player.position.y + Math.sin(spawnAngle) * spawnDistance;
+    } else {
+      // Random spawn
+      spawnX = this.worldBounds.minX + Math.random() * this.worldBounds.width;
+      spawnY = this.worldBounds.minY + Math.random() * this.worldBounds.height;
+    }
+
+    // Ensure spawn is within bounds
+    spawnX = Math.max(
+      this.worldBounds.minX,
+      Math.min(this.worldBounds.maxX, spawnX)
+    );
+    spawnY = Math.max(
+      this.worldBounds.minY,
+      Math.min(this.worldBounds.maxY, spawnY)
+    );
 
     const bot: Bot = {
       id: botId,
@@ -449,7 +590,7 @@ export class GameEngine {
     };
 
     this.gameState.tanks.set(botId, bot);
-    this.bots.set(botId, new AIBot(bot, this.gameState));
+    this.bots.set(botId, new AIBot(bot, this.gameState, this.worldBounds));
   }
 
   private getBotColor(difficulty: "easy" | "medium" | "hard"): string {
@@ -476,12 +617,20 @@ export class GameEngine {
   }
 
   private updateStats(player: Tank) {
+    const now = Date.now();
+    const timeSinceLastShot = now - this.lastPlayerShot;
+    const isRegenerating =
+      player.health < player.maxHealth &&
+      player.health > 0 &&
+      timeSinceLastShot > this.healthRegenCooldown;
+
     this.options.onStatsUpdate({
       score: player.score,
       level: player.level,
       kills: player.kills,
       health: Math.max(0, player.health), // Ensure health doesn't go below 0
       maxHealth: player.maxHealth,
+      isRegenerating,
     });
   }
 
@@ -524,6 +673,12 @@ export class GameEngine {
     this.isRunning = false;
     this.isGameOver = false;
 
+    // Send leave message to server
+    this.sendToServer({
+      type: "leave",
+      playerId: this.playerId,
+    });
+
     // Cancel animation frame
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -554,6 +709,12 @@ export class GameEngine {
     this.isGameOver = false;
     this.isRunning = false;
 
+    // Reset timers
+    this.lastPlayerShot = 0;
+    this.lastFireTime = 0;
+    this.lastBotSpawn = 0;
+    this.botSpawnTimer = 0;
+
     // Generate new player ID to ensure fresh start
     this.playerId = Math.random().toString(36).substr(2, 9);
 
@@ -567,6 +728,15 @@ export class GameEngine {
 
     // Reinitialize player at center
     this.initializePlayer();
+
+    // Rejoin the multiplayer server
+    this.sendToServer({
+      type: "join",
+      playerId: this.playerId,
+      playerName: this.options.playerName,
+      tankClass: this.options.tankClass,
+      gameMode: this.options.gameMode,
+    });
 
     // Ensure canvas is properly sized
     this.canvas.width = window.innerWidth;
@@ -667,8 +837,19 @@ export class GameEngine {
     this.updateCamera();
     this.spawnBotsIfNeeded();
 
+    // Send multiplayer updates
+    this.sendMultiplayerUpdates();
+
     if (this.autoFire && !this.isGameOver) {
       this.shoot();
+    }
+  }
+
+  private sendMultiplayerUpdates() {
+    const now = Date.now();
+    if (now - this.lastMultiplayerUpdate > this.multiplayerUpdateInterval) {
+      this.sendPlayerUpdate();
+      this.lastMultiplayerUpdate = now;
     }
   }
 
@@ -757,7 +938,7 @@ export class GameEngine {
   }
 
   private spawnBotsIfNeeded() {
-    if (this.isGameOver) return;
+    if (this.isGameOver || !this.enableBots) return;
 
     const now = Date.now();
 
@@ -805,19 +986,41 @@ export class GameEngine {
     const speed = 200;
     const moveDistance = speed * (deltaTime / 1000);
 
-    // Movement
+    // Movement with boundary checking
     if (this.keys.has("w") || this.keys.has("arrowup")) {
-      player.position.y -= moveDistance;
+      const newY = player.position.y - moveDistance;
+      if (newY >= this.worldBounds.minY) {
+        player.position.y = newY;
+      }
     }
     if (this.keys.has("s") || this.keys.has("arrowdown")) {
-      player.position.y += moveDistance;
+      const newY = player.position.y + moveDistance;
+      if (newY <= this.worldBounds.maxY) {
+        player.position.y = newY;
+      }
     }
     if (this.keys.has("a") || this.keys.has("arrowleft")) {
-      player.position.x -= moveDistance;
+      const newX = player.position.x - moveDistance;
+      if (newX >= this.worldBounds.minX) {
+        player.position.x = newX;
+      }
     }
     if (this.keys.has("d") || this.keys.has("arrowright")) {
-      player.position.x += moveDistance;
+      const newX = player.position.x + moveDistance;
+      if (newX <= this.worldBounds.maxX) {
+        player.position.x = newX;
+      }
     }
+
+    // Enforce boundaries (in case of multiplayer updates or other position changes)
+    player.position.x = Math.max(
+      this.worldBounds.minX,
+      Math.min(this.worldBounds.maxX, player.position.x)
+    );
+    player.position.y = Math.max(
+      this.worldBounds.minY,
+      Math.min(this.worldBounds.maxY, player.position.y)
+    );
 
     // Rotation (aim towards mouse)
     const centerX = this.canvas.width / 2;
@@ -848,22 +1051,13 @@ export class GameEngine {
       bullet.position.x += bullet.velocity.x * (deltaTime / 1000);
       bullet.position.y += bullet.velocity.y * (deltaTime / 1000);
 
-      // Remove bullets that are too far from any player
-      const maxDistance = 2000;
-      let shouldKeep = false;
-
-      for (const tank of this.gameState.tanks.values()) {
-        const distance = Math.sqrt(
-          Math.pow(bullet.position.x - tank.position.x, 2) +
-            Math.pow(bullet.position.y - tank.position.y, 2)
-        );
-        if (distance < maxDistance) {
-          shouldKeep = true;
-          break;
-        }
-      }
-
-      return shouldKeep;
+      // Remove bullets that are outside world boundaries
+      return (
+        bullet.position.x >= this.worldBounds.minX &&
+        bullet.position.x <= this.worldBounds.maxX &&
+        bullet.position.y >= this.worldBounds.minY &&
+        bullet.position.y <= this.worldBounds.maxY
+      );
     });
   }
 
@@ -885,8 +1079,15 @@ export class GameEngine {
     const player = this.gameState.tanks.get(this.playerId);
     if (!player) return;
 
-    // Track when player shoots for health regen
-    this.lastPlayerShot = Date.now();
+    // Check fire rate limiting
+    const now = Date.now();
+    if (now - this.lastFireTime < this.fireRate) {
+      return; // Too soon to fire again
+    }
+
+    // Track when player shoots for health regen and fire rate
+    this.lastPlayerShot = now;
+    this.lastFireTime = now;
 
     const bulletSpeed = 800;
     const bulletSize = 8;
@@ -905,6 +1106,17 @@ export class GameEngine {
     };
 
     this.gameState.bullets.push(bullet);
+
+    // Send bullet to server for multiplayer sync
+    this.sendToServer({
+      type: "shoot",
+      playerId: this.playerId,
+      position: bullet.position,
+      velocity: bullet.velocity,
+      damage: bullet.damage,
+      size: bullet.size,
+      color: bullet.color,
+    });
   }
 
   private render() {
@@ -918,6 +1130,9 @@ export class GameEngine {
     // Save context for camera transform
     this.ctx.save();
     this.ctx.translate(this.camera.x, this.camera.y);
+
+    // Draw world boundaries
+    this.drawWorldBoundaries();
 
     // Draw grid
     this.drawGrid();
@@ -1072,6 +1287,20 @@ export class GameEngine {
     }
   }
 
+  private drawWorldBoundaries() {
+    // Draw world boundary as red border
+    this.ctx.strokeStyle = "#FF0000";
+    this.ctx.lineWidth = 4;
+    this.ctx.setLineDash([10, 5]); // Dashed line
+    this.ctx.strokeRect(
+      this.worldBounds.minX,
+      this.worldBounds.minY,
+      this.worldBounds.width,
+      this.worldBounds.height
+    );
+    this.ctx.setLineDash([]); // Reset line dash
+  }
+
   public handleResize() {
     // Update canvas size
     this.canvas.width = window.innerWidth;
@@ -1096,14 +1325,83 @@ export class GameEngine {
   public handleServerMessage(data: ServerMessage) {
     // Handle messages from WebSocket server
     switch (data.type) {
-      case "player-update":
-        // Update other players
+      case "playerJoined":
+        if (data.player && typeof data.player === "object") {
+          const player = data.player as Tank;
+          if (player.id !== this.playerId) {
+            this.gameState.tanks.set(player.id, player);
+          }
+        }
         break;
-      case "bullet-update":
-        // Update bullets
+
+      case "playerUpdate":
+        if (data.playerId && data.playerId !== this.playerId) {
+          const tank = this.gameState.tanks.get(data.playerId as string);
+          if (tank) {
+            // Update tank properties
+            if (data.position && typeof data.position === "object") {
+              tank.position = data.position as Vector2;
+            }
+            if (typeof data.rotation === "number") {
+              tank.rotation = data.rotation;
+            }
+            if (typeof data.health === "number") {
+              tank.health = data.health;
+            }
+            if (typeof data.score === "number") {
+              tank.score = data.score;
+            }
+            if (typeof data.level === "number") {
+              tank.level = data.level;
+            }
+            if (typeof data.kills === "number") {
+              tank.kills = data.kills;
+            }
+          }
+        }
         break;
-      case "chat":
-        // Handle chat messages
+
+      case "bulletFired":
+        if (data.bullet && typeof data.bullet === "object") {
+          const bullet = data.bullet as Bullet;
+          // Only add bullets from other players
+          if (bullet.ownerId !== this.playerId) {
+            this.gameState.bullets.push(bullet);
+          }
+        }
+        break;
+
+      case "playerLeft":
+        if (data.playerId && data.playerId !== this.playerId) {
+          this.gameState.tanks.delete(data.playerId as string);
+        }
+        break;
+
+      case "gameStateUpdate":
+        // Handle full game state updates
+        if (data.tanks && Array.isArray(data.tanks)) {
+          const tanks = data.tanks as Tank[];
+          tanks.forEach((tank) => {
+            if (tank.id !== this.playerId) {
+              this.gameState.tanks.set(tank.id, tank);
+            }
+          });
+        }
+
+        if (data.bullets && Array.isArray(data.bullets)) {
+          // Replace bullets with server state (filter out our own bullets to avoid duplicates)
+          const serverBullets = (data.bullets as Bullet[]).filter(
+            (bullet) => bullet.ownerId !== this.playerId
+          );
+          const ourBullets = this.gameState.bullets.filter(
+            (bullet) => bullet.ownerId === this.playerId
+          );
+          this.gameState.bullets = [...ourBullets, ...serverBullets];
+        }
+        break;
+
+      case "chatMessage":
+        // Chat messages are handled by the ChatPanel component
         break;
     }
   }
@@ -1135,6 +1433,42 @@ export class GameEngine {
 
   public getGameState() {
     return this.gameState;
+  }
+
+  public getMultiplayerTanks() {
+    // Return only real players (not bots) for leaderboard
+    const realPlayers = new Map<string, Tank>();
+    for (const [id, tank] of this.gameState.tanks) {
+      if (!id.startsWith("bot_")) {
+        realPlayers.set(id, tank);
+      }
+    }
+    return realPlayers;
+  }
+
+  // Public methods for minimap
+  public getWorldBounds() {
+    return this.worldBounds;
+  }
+
+  public getPlayerViewport() {
+    const player = this.gameState.tanks.get(this.playerId);
+    if (!player) return null;
+
+    return {
+      centerX: player.position.x,
+      centerY: player.position.y,
+      width: this.canvas.width,
+      height: this.canvas.height,
+    };
+  }
+
+  public getAllEntities() {
+    return {
+      tanks: Array.from(this.gameState.tanks.values()),
+      bullets: this.gameState.bullets,
+      playerId: this.playerId,
+    };
   }
 
   public get gameOver() {

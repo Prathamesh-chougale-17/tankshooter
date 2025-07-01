@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,15 +20,45 @@ import { address } from "gill";
 import { Gamepad2, Users, Trophy, Settings } from "lucide-react";
 import { useGetBalanceFromCustomRpcQuery } from "@/components/account/account-data-access";
 
+import { useWebSocket } from "@/hooks/use-websocket";
+
 export default function HomePage() {
   const [gameState, setGameState] = useState<"menu" | "game">("menu");
   const [playerName, setPlayerName] = useState("");
   const [selectedTankClass, setSelectedTankClass] = useState("basic");
   const [gameMode, setGameMode] = useState("ffa");
+  const [playMode, setPlayMode] = useState<"auto" | "bots" | "multiplayer">(
+    "auto"
+  );
   const [isPayingGas, setIsPayingGas] = useState(false);
 
   const { account } = useWalletUi();
   const txSigner = useWalletUiSigner();
+  const { isConnected, lastMessage } = useWebSocket();
+
+  // Extract server stats from WebSocket messages
+  const [serverStats, setServerStats] = useState({
+    onlinePlayers: 0,
+    activeGames: 0,
+    servers: 1,
+  });
+
+  useEffect(() => {
+    if (lastMessage && lastMessage.type === "serverStats") {
+      setServerStats({
+        onlinePlayers: (lastMessage.onlinePlayers as number) || 0,
+        activeGames: (lastMessage.activeGames as number) || 0,
+        servers: (lastMessage.servers as number) || 1,
+      });
+    }
+  }, [lastMessage]);
+
+  // Auto-switch from multiplayer mode if connection is lost
+  useEffect(() => {
+    if (playMode === "multiplayer" && !isConnected) {
+      setPlayMode("auto");
+    }
+  }, [isConnected, playMode]);
 
   // Get balance for balance checking
   const dummyAddress = address("11111111111111111111111111111112");
@@ -69,6 +99,27 @@ export default function HomePage() {
     },
   ];
 
+  const playModes = [
+    {
+      id: "auto",
+      name: "Auto Select",
+      description: "Multiplayer if connected, bots if offline",
+      icon: "⚡",
+    },
+    {
+      id: "multiplayer",
+      name: "Multiplayer",
+      description: "Play with real players online",
+      icon: "🌐",
+    },
+    {
+      id: "bots",
+      name: "Bot Arena",
+      description: "Practice against AI opponents",
+      icon: "🤖",
+    },
+  ];
+
   const startGame = async () => {
     if (!playerName.trim()) {
       return;
@@ -76,6 +127,14 @@ export default function HomePage() {
 
     if (!account?.address) {
       alert("Please connect your wallet first!");
+      return;
+    }
+
+    // Check if multiplayer is selected but server is offline
+    if (playMode === "multiplayer" && !isConnected) {
+      alert(
+        "Multiplayer mode requires server connection. Please select 'Auto Select' or 'Bot Arena' for offline play."
+      );
       return;
     }
 
@@ -97,6 +156,12 @@ export default function HomePage() {
       throw new Error("Wallet not connected");
     }
 
+    if (!txSigner) {
+      throw new Error(
+        "Wallet signer not available. Please connect your wallet."
+      );
+    }
+
     const result = await payGameGasFee(account.address, txSigner);
 
     if (!result.success) {
@@ -111,11 +176,15 @@ export default function HomePage() {
   };
 
   if (gameState === "game") {
+    const effectivePlayMode =
+      playMode === "auto" ? (isConnected ? "multiplayer" : "bots") : playMode;
+
     return (
       <GameCanvas
         playerName={playerName}
         tankClass={selectedTankClass}
         gameMode={gameMode}
+        playMode={effectivePlayMode}
         onBackToMenu={backToMenu}
       />
     );
@@ -155,9 +224,18 @@ export default function HomePage() {
               <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Shooter
               </span>
+              {/* Connection status indicator */}
+              <div
+                className={`inline-block ml-4 w-3 h-3 rounded-full ${
+                  isConnected ? "bg-green-400 animate-pulse" : "bg-gray-400"
+                }`}
+                title={isConnected ? "Multiplayer Online" : "Offline Mode"}
+              ></div>
             </CardTitle>
             <p className="text-gray-300 text-lg font-medium animate-fade-in">
-              Multiplayer Tank Battle Arena
+              {isConnected
+                ? "Multiplayer Tank Battle Arena"
+                : "Single Player Tank Battle Arena"}
             </p>
           </CardHeader>
 
@@ -202,6 +280,62 @@ export default function HomePage() {
                 className="bg-white/10 border-purple-500/30 text-white placeholder:text-gray-400 h-12 text-lg backdrop-blur-sm hover:bg-white/15 focus:bg-white/20 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg"
                 maxLength={20}
               />
+            </div>
+            {/* Play Mode Selection */}
+            <div
+              className="space-y-3 group animate-fade-in"
+              style={{ animationDelay: "0.3s", animationFillMode: "both" }}
+            >
+              <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-gradient-to-r from-cyan-400 to-purple-400"></div>
+                Play Mode
+              </label>
+              <Select
+                value={playMode}
+                onValueChange={(value) =>
+                  setPlayMode(value as "auto" | "bots" | "multiplayer")
+                }
+              >
+                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
+                  <SelectValue placeholder="Choose play mode..." />
+                </SelectTrigger>
+                <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
+                  {playModes.map((mode) => (
+                    <SelectItem
+                      key={mode.id}
+                      value={mode.id}
+                      disabled={mode.id === "multiplayer" && !isConnected}
+                      className={`focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5 ${
+                        mode.id === "multiplayer" && !isConnected
+                          ? "opacity-50 cursor-not-allowed hover:bg-transparent"
+                          : ""
+                      }`}
+                    >
+                      <div className="py-2 px-1">
+                        <div className="font-semibold text-white flex items-center gap-2">
+                          <span className="text-lg">{mode.icon}</span>
+                          {mode.name}
+                          {mode.id === "multiplayer" && !isConnected && (
+                            <span className="text-xs text-red-400 ml-2">
+                              (Offline)
+                            </span>
+                          )}
+                          {mode.id === "multiplayer" && isConnected && (
+                            <span className="text-xs text-green-400 ml-2">
+                              (Online)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1 ml-6">
+                          {mode.id === "multiplayer" && !isConnected
+                            ? "Server connection required"
+                            : mode.description}
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div
               className="flex justify-between animate-fade-in"
@@ -295,7 +429,23 @@ export default function HomePage() {
                     <span className="relative z-10">
                       {!account?.address
                         ? "Connect Wallet First"
-                        : "Start Game (0.001 GOR)"}
+                        : (() => {
+                            const effectiveMode =
+                              playMode === "auto"
+                                ? isConnected
+                                  ? "multiplayer"
+                                  : "bots"
+                                : playMode;
+
+                            switch (effectiveMode) {
+                              case "multiplayer":
+                                return "Start Multiplayer Game (0.001 GOR)";
+                              case "bots":
+                                return "Start Bot Arena (0.001 GOR)";
+                              default:
+                                return "Start Game (0.001 GOR)";
+                            }
+                          })()}
                     </span>
                   </>
                 )}
@@ -312,35 +462,102 @@ export default function HomePage() {
               style={{ animationDelay: "0.8s", animationFillMode: "both" }}
             >
               <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
-                <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl p-4 backdrop-blur-sm border border-blue-500/30 group-hover:border-blue-400/50 group-hover:shadow-lg group-hover:shadow-blue-500/20">
-                  <Users className="h-10 w-10 mx-auto mb-3 text-blue-400 group-hover:text-blue-300 transition-colors duration-300" />
+                <div
+                  className={`bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                    isConnected
+                      ? "border-blue-500/30 group-hover:border-blue-400/50 group-hover:shadow-lg group-hover:shadow-blue-500/20"
+                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                  }`}
+                >
+                  <Users
+                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                      isConnected
+                        ? "text-blue-400 group-hover:text-blue-300"
+                        : "text-gray-400 group-hover:text-gray-300"
+                    }`}
+                  />
                   <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
                     Online Players
                   </div>
-                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                    1,247
+                  <div
+                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                      isConnected
+                        ? "from-blue-400 to-cyan-400"
+                        : "from-gray-400 to-gray-500"
+                    }`}
+                  >
+                    {isConnected ? serverStats.onlinePlayers : "Offline"}
                   </div>
+                  {!isConnected && (
+                    <div className="text-xs text-gray-500 mt-1">Demo Mode</div>
+                  )}
                 </div>
               </div>
               <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
-                <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 backdrop-blur-sm border border-yellow-500/30 group-hover:border-yellow-400/50 group-hover:shadow-lg group-hover:shadow-yellow-500/20">
-                  <Trophy className="h-10 w-10 mx-auto mb-3 text-yellow-400 group-hover:text-yellow-300 transition-colors duration-300" />
+                <div
+                  className={`bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                    isConnected
+                      ? "border-yellow-500/30 group-hover:border-yellow-400/50 group-hover:shadow-lg group-hover:shadow-yellow-500/20"
+                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                  }`}
+                >
+                  <Trophy
+                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                      isConnected
+                        ? "text-yellow-400 group-hover:text-yellow-300"
+                        : "text-gray-400 group-hover:text-gray-300"
+                    }`}
+                  />
                   <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
                     Active Games
                   </div>
-                  <div className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
-                    89
+                  <div
+                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                      isConnected
+                        ? "from-yellow-400 to-orange-400"
+                        : "from-gray-400 to-gray-500"
+                    }`}
+                  >
+                    {isConnected ? serverStats.activeGames : "Local"}
                   </div>
+                  {!isConnected && (
+                    <div className="text-xs text-gray-500 mt-1">With Bots</div>
+                  )}
                 </div>
               </div>
               <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
-                <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-4 backdrop-blur-sm border border-green-500/30 group-hover:border-green-400/50 group-hover:shadow-lg group-hover:shadow-green-500/20">
-                  <Settings className="h-10 w-10 mx-auto mb-3 text-green-400 group-hover:text-green-300 transition-colors duration-300" />
+                <div
+                  className={`bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                    isConnected
+                      ? "border-green-500/30 group-hover:border-green-400/50 group-hover:shadow-lg group-hover:shadow-green-500/20"
+                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                  }`}
+                >
+                  <Settings
+                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                      isConnected
+                        ? "text-green-400 group-hover:text-green-300"
+                        : "text-gray-400 group-hover:text-gray-300"
+                    }`}
+                  />
                   <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
-                    Servers
+                    Server Status
                   </div>
-                  <div className="text-2xl font-bold bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                    12
+                  <div
+                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                      isConnected
+                        ? "from-green-400 to-emerald-400"
+                        : "from-gray-400 to-gray-500"
+                    }`}
+                  >
+                    {isConnected ? "Online" : "Offline"}
+                  </div>
+                  <div
+                    className={`text-xs mt-1 ${
+                      isConnected ? "text-green-400" : "text-gray-500"
+                    }`}
+                  >
+                    {isConnected ? "Multiplayer Ready" : "Single Player"}
                   </div>
                 </div>
               </div>

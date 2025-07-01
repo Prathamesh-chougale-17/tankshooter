@@ -1,28 +1,33 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Send, X } from "lucide-react"
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send, X } from "lucide-react";
 
 interface ChatMessage {
-  id: string
-  playerName: string
-  message: string
-  timestamp: Date
-  type: "chat" | "system" | "kill"
+  id: string;
+  playerName: string;
+  message: string;
+  timestamp: Date;
+  type: "chat" | "system" | "kill";
 }
 
 interface ChatPanelProps {
-  onSendMessage: (message: string) => void
-  onClose?: () => void
+  onSendMessage: (message: string) => void;
+  onClose?: () => void;
+  messages?: ChatMessage[];
 }
 
-export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
+export function ChatPanel({
+  onSendMessage,
+  onClose,
+  messages: externalMessages,
+}: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -31,16 +36,23 @@ export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
       timestamp: new Date(),
       type: "system",
     },
-  ])
-  const [inputMessage, setInputMessage] = useState("")
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  ]);
+  const [inputMessage, setInputMessage] = useState("");
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // Update messages from external source (multiplayer)
+  useEffect(() => {
+    if (externalMessages && externalMessages.length > 0) {
+      setMessages(externalMessages);
+    }
+  }, [externalMessages]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
-  }, [messages])
+  }, [messages]);
 
   const handleSendMessage = () => {
     if (inputMessage.trim()) {
@@ -50,30 +62,30 @@ export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
         message: inputMessage.trim(),
         timestamp: new Date(),
         type: "chat",
-      }
+      };
 
-      setMessages((prev) => [...prev, newMessage])
-      onSendMessage(inputMessage.trim())
-      setInputMessage("")
+      setMessages((prev) => [...prev, newMessage]);
+      onSendMessage(inputMessage.trim());
+      setInputMessage("");
     }
-  }
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      handleSendMessage()
+      handleSendMessage();
     }
-  }
+  };
 
   const getMessageColor = (type: string) => {
     switch (type) {
       case "system":
-        return "text-blue-400"
+        return "text-blue-400";
       case "kill":
-        return "text-red-400"
+        return "text-red-400";
       default:
-        return "text-white"
+        return "text-white";
     }
-  }
+  };
 
   return (
     <Card className="w-80 h-64 bg-black/80 border-white/20">
@@ -97,9 +109,14 @@ export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
             {messages.map((msg) => (
               <div key={msg.id} className="text-xs">
                 <span className="text-gray-400">
-                  {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {msg.timestamp.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>{" "}
-                <span className="font-medium text-purple-400">{msg.playerName}:</span>{" "}
+                <span className="font-medium text-purple-400">
+                  {msg.playerName}:
+                </span>{" "}
                 <span className={getMessageColor(msg.type)}>{msg.message}</span>
               </div>
             ))}
@@ -115,11 +132,15 @@ export function ChatPanel({ onSendMessage, onClose }: ChatPanelProps) {
             className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 text-xs"
             maxLength={100}
           />
-          <Button onClick={handleSendMessage} size="sm" className="bg-purple-600 hover:bg-purple-700 px-3">
+          <Button
+            onClick={handleSendMessage}
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700 px-3"
+          >
             <Send className="h-3 w-3" />
           </Button>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

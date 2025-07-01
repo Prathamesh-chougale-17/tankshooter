@@ -38,9 +38,15 @@ export const GAME_TREASURY_ADDRESS =
 
 export async function payGameGasFee(
   walletAddress: string,
-  txSigner: TransactionSendingSigner
+  txSigner: TransactionSendingSigner | null
 ): Promise<GasPaymentResult> {
   try {
+    if (!txSigner) {
+      throw new Error(
+        "Wallet signer not available. Please connect your wallet."
+      );
+    }
+
     console.log("🎮 Starting gas payment for Tank Shooter...");
     console.log("💰 Amount: 0.001 GOR");
     console.log("🔗 RPC: " + GORBAGANA_RPC);

@@ -2,7 +2,6 @@ import dynamic from "next/dynamic";
 import { ReactNode } from "react";
 import {
   createSolanaDevnet,
-  createSolanaLocalnet,
   createWalletUiConfig,
   WalletUi,
 } from "@wallet-ui/react";
@@ -21,7 +20,7 @@ export const ClusterButton = dynamic(
 );
 
 const config = createWalletUiConfig({
-  clusters: [createSolanaDevnet(), createSolanaLocalnet()],
+  clusters: [createSolanaDevnet()],
 });
 
 export function SolanaProvider({ children }: { children: ReactNode }) {

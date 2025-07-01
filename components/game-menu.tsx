@@ -102,6 +102,12 @@ export function GameMenu({ onStartGame }: GameMenuProps) {
       throw new Error("Wallet not connected");
     }
 
+    if (!txSigner) {
+      throw new Error(
+        "Wallet signer not available. Please connect your wallet."
+      );
+    }
+
     const result = await payGameGasFee(account.address, txSigner);
     console.log("Gas fee payment result:", result);
     return result;

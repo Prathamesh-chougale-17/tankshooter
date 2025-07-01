@@ -16,6 +16,10 @@ export function useWalletTransactionSignAndSend() {
   const { client } = useWalletUi();
 
   return async (ix: IInstruction, signer: TransactionSendingSigner) => {
+    if (!client) {
+      throw new Error("Wallet client not available");
+    }
+
     const { value: latestBlockhash } = await client.rpc
       .getLatestBlockhash()
       .send();

@@ -9,6 +9,7 @@ import { ChatPanel } from "@/components/chat-panel";
 import { UpgradePanel } from "@/components/upgrade-panel";
 import { Leaderboard } from "@/components/leaderboard";
 import { GameOverScreen } from "@/components/game-over-screen";
+import { Minimap } from "@/components/minimap";
 import {
   ArrowLeft,
   MessageCircle,
@@ -25,10 +26,19 @@ interface Tank {
   kills: number;
 }
 
+interface ChatMessage {
+  id: string;
+  playerName: string;
+  message: string;
+  timestamp: number;
+  type: "chat" | "system" | "kill";
+}
+
 interface GameCanvasProps {
   playerName: string;
   tankClass: string;
   gameMode: string;
+  playMode: "multiplayer" | "bots";
   onBackToMenu: () => void;
 }
 
@@ -45,6 +55,7 @@ export function GameCanvas({
   playerName,
   tankClass,
   gameMode,
+  playMode,
   onBackToMenu,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -58,6 +69,7 @@ export function GameCanvas({
     kills: 0,
     health: 1000,
     maxHealth: 1000,
+    isRegenerating: false,
   });
   const [leaderboardData, setLeaderboardData] = useState<
     | {
@@ -66,9 +78,17 @@ export function GameCanvas({
       }
     | undefined
   >(undefined);
-  const [isRegenerating, setIsRegenerating] = useState(false);
   const [gameOverData, setGameOverData] = useState<GameOverData | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      playerName: "System",
+      message: "Welcome to the game! Use WASD to move and mouse to aim.",
+      timestamp: Date.now(),
+      type: "system",
+    },
+  ]);
   const gameKey = 0; // Static key since we don't need re-rendering
 
   const { socket, isConnected, sendMessage } = useWebSocket();
@@ -97,9 +117,10 @@ export function GameCanvas({
       playerName,
       tankClass,
       gameMode,
+      sendMessage: playMode === "multiplayer" ? sendMessage : undefined, // Only enable multiplayer for multiplayer mode
+      enableBots: true, // Always enable bots for now - they provide good gameplay
       onStatsUpdate: (stats) => {
         setGameStats(stats);
-        setIsRegenerating(stats.health < stats.maxHealth && stats.health > 0);
       },
       onGameOver: handleGameOver,
     });
@@ -111,6 +132,20 @@ export function GameCanvas({
     if (socket) {
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+
+        // Handle chat messages in the UI
+        if (data.type === "chatMessage" && data.message) {
+          const newMessage: ChatMessage = {
+            id: data.message.id || Date.now().toString(),
+            playerName: data.message.playerName || "Unknown",
+            message: data.message.message || "",
+            timestamp: data.message.timestamp || Date.now(),
+            type: data.message.type || "chat",
+          };
+          setChatMessages((prev) => [...prev, newMessage]);
+        }
+
+        // Pass to game engine for other message types
         gameEngine.handleServerMessage(data);
       };
     }
@@ -118,7 +153,15 @@ export function GameCanvas({
     return () => {
       gameEngine.stop();
     };
-  }, [playerName, tankClass, gameMode, socket, handleGameOver]);
+  }, [
+    playerName,
+    tankClass,
+    gameMode,
+    playMode,
+    socket,
+    sendMessage,
+    handleGameOver,
+  ]);
 
   useEffect(() => {
     const cleanup = initializeGame();
@@ -142,8 +185,13 @@ export function GameCanvas({
   useEffect(() => {
     const updateLeaderboard = () => {
       if (gameEngineRef.current && !isGameOver) {
+        // Get both multiplayer tanks and all tanks
+        const multiplayerTanks = gameEngineRef.current.getMultiplayerTanks();
+        const allTanks = gameEngineRef.current.getGameState().tanks;
+
+        // Show multiplayer tanks if there are real players, otherwise show all tanks
         setLeaderboardData({
-          tanks: gameEngineRef.current.getGameState().tanks,
+          tanks: multiplayerTanks.size > 1 ? multiplayerTanks : allTanks,
           playerId: gameEngineRef.current.getPlayerId(),
         });
       }
@@ -197,8 +245,8 @@ export function GameCanvas({
       kills: 0,
       health: 1000,
       maxHealth: 1000,
+      isRegenerating: false,
     });
-    setIsRegenerating(false);
     setLeaderboardData(undefined);
 
     // Reset UI panels
@@ -293,32 +341,32 @@ export function GameCanvas({
           </div>
         </div>
 
-        {/* Enhanced Health Bar */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 pointer-events-auto">
+        {/* Enhanced Health Bar - Moved higher and made smaller */}
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 pointer-events-auto">
           <Card
-            className={`bg-black/50 border-white/20 px-6 py-3 ${
+            className={`bg-black/50 border-white/20 px-2 py-1 gap-0 ${
               gameStats.health <= 0 ? "border-red-500/50" : ""
             }`}
           >
-            <div className="text-white text-center mb-2 flex items-center justify-center gap-2">
-              <span className="text-sm">{playerName}</span>
-              {isRegenerating &&
+            <div className="text-white text-center flex items-center justify-center gap-1 mb-1">
+              <span className="text-xs font-medium">{playerName}</span>
+              {gameStats.isRegenerating &&
                 healthPercentage < 100 &&
                 healthPercentage > 0 && (
                   <div className="flex items-center gap-1 text-green-400">
-                    <Heart className="h-3 w-3 animate-pulse" />
-                    <span className="text-xs">Regenerating...</span>
+                    <Heart className="h-2 w-2 animate-pulse" />
+                    <span className="text-xs">Regen</span>
                   </div>
                 )}
               {gameStats.health <= 0 && (
-                <div className="flex items-center gap-1 text-red-400">
-                  <span className="text-xs font-bold">DESTROYED</span>
-                </div>
+                <span className="text-xs font-bold text-red-400">
+                  DESTROYED
+                </span>
               )}
             </div>
-            <div className="w-80 h-6 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
+            <div className="w-32 h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600 mb-1">
               <div
-                className={`h-full transition-all duration-300 ${
+                className={`h-full transition-all duration-500 ${
                   healthPercentage > 75
                     ? "bg-gradient-to-r from-green-400 to-green-500"
                     : healthPercentage > 50
@@ -329,63 +377,84 @@ export function GameCanvas({
                     ? "bg-gradient-to-r from-red-500 to-orange-400"
                     : "bg-gray-600"
                 } ${
-                  isRegenerating && healthPercentage > 0 ? "animate-pulse" : ""
+                  gameStats.isRegenerating &&
+                  healthPercentage > 0 &&
+                  healthPercentage < 100
+                    ? "animate-pulse"
+                    : ""
                 }`}
                 style={{ width: `${Math.max(0, healthPercentage)}%` }}
               />
             </div>
-            <div className="text-center text-sm text-white mt-2 flex items-center justify-center gap-2">
-              <span className="font-mono">
+            <div className="text-center">
+              <span className="font-mono text-xs text-gray-300">
                 {Math.max(0, gameStats.health)} / {gameStats.maxHealth}
               </span>
-              {healthPercentage < 100 && healthPercentage > 0 && (
-                <span className="text-xs text-gray-400">
-                  (Stop shooting to regenerate)
-                </span>
-              )}
             </div>
           </Card>
         </div>
 
-        {/* Connection Status */}
-        <div className="absolute top-4 right-4 pointer-events-auto">
+        {/* Connection Status - Moved to top right */}
+        <div className="absolute bottom-4 right-4 pointer-events-auto flex flex-col gap-1">
           <div
-            className={`px-3 py-1 rounded-full text-xs font-medium ${
-              isConnected
+            className={`px-2 py-1 rounded-full text-xs font-medium ${
+              isConnected && playMode === "multiplayer"
                 ? "bg-green-500/20 text-green-400 border border-green-500/30"
                 : "bg-red-500/20 text-red-400 border border-red-500/30"
             }`}
           >
-            {isConnected ? "Connected" : "Offline Mode"}
+            {isConnected && playMode === "multiplayer"
+              ? "Multiplayer Online"
+              : "Offline Mode"}
           </div>
+          <div className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            {playMode === "multiplayer" ? "🌐 Multiplayer" : "🤖 Bot Arena"}
+          </div>
+          {/* Show real player count in multiplayer mode */}
+          {playMode === "multiplayer" && leaderboardData && (
+            <div className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+              👥 {leaderboardData.tanks.size || 0} Players
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Side Panels - Hidden when game over */}
+      {/* Side Panels - Moved to left side to avoid overlap with multiplayer badges */}
       {!isGameOver && showLeaderboard && (
-        <div className="absolute top-20 right-4 pointer-events-auto">
+        <div className="absolute top-20 left-4 pointer-events-auto">
           <Leaderboard gameData={leaderboardData} />
         </div>
       )}
 
       {!isGameOver && showUpgrades && (
-        <div className="absolute top-20 left-4 pointer-events-auto">
+        <div className="absolute top-20 left-80 pointer-events-auto">
           <UpgradePanel playerStats={gameStats} onUpgrade={handleUpgrade} />
         </div>
       )}
 
       {!isGameOver && showChat && (
-        <div className="absolute bottom-20 left-4 pointer-events-auto">
+        <div className="absolute bottom-28 right-4 pointer-events-auto">
           <ChatPanel
             onSendMessage={handleChatMessage}
             onClose={() => setShowChat(false)}
+            messages={chatMessages.map((msg) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+            }))}
           />
         </div>
       )}
 
-      {/* Enhanced Game Instructions - Hidden when game over */}
+      {/* Minimap - Top right corner */}
       {!isGameOver && (
-        <div className="absolute bottom-4 right-4 pointer-events-auto">
+        <div className="absolute top-20 right-4 pointer-events-auto">
+          <Minimap gameEngine={gameEngineRef.current} />
+        </div>
+      )}
+
+      {/* Enhanced Game Instructions - Moved to bottom left */}
+      {!isGameOver && (
+        <div className="absolute bottom-4 left-4 pointer-events-auto">
           <Card className="bg-black/50 border-white/20 p-3">
             <div className="text-white text-xs space-y-1">
               <div className="font-semibold text-purple-300 mb-2">
@@ -414,9 +483,9 @@ export function GameCanvas({
         </div>
       )}
 
-      {/* Bot Activity Indicator - Hidden when game over */}
+      {/* Bot Activity Indicator - Moved to right side */}
       {!isGameOver && (
-        <div className="absolute top-20 left-4 pointer-events-none">
+        <div className="absolute top-14 right-4 pointer-events-none">
           <Card className="bg-black/50 border-white/20 px-3 py-2">
             <div className="text-white text-xs flex items-center gap-2">
               <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>

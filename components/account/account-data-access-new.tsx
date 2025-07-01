@@ -149,6 +149,12 @@ export function useTransferSolCustomRpcMutation({
   return useMutation({
     mutationFn: async (input: { destination: Address; amount: number }) => {
       try {
+        if (!txSigner) {
+          throw new Error(
+            "Wallet signer not available. Please connect your wallet."
+          );
+        }
+
         const customClient = { rpc: createSolanaRpc(rpcUrl) } as SolanaClient;
         const { signature } = await createTransactionWithCustomRpc({
           txSigner,
@@ -311,6 +317,18 @@ export function useTransferSolMutation({ address }: { address: Address }) {
   return useMutation({
     mutationFn: async (input: { destination: Address; amount: number }) => {
       try {
+        if (!txSigner) {
+          throw new Error(
+            "Wallet signer not available. Please connect your wallet."
+          );
+        }
+
+        if (!client) {
+          throw new Error(
+            "Wallet client not available. Please connect your wallet."
+          );
+        }
+
         const { signature } = await createTransaction({
           txSigner,
           destination: input.destination,
