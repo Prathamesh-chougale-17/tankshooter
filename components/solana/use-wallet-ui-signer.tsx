@@ -7,7 +7,7 @@ import {
 export function useWalletUiSigner() {
   const { account, cluster } = useWalletUi();
 
-  // Always call the hook, but with safe fallbacks
+  // Always call the hook with proper fallbacks
   const signer = useWalletAccountTransactionSendingSigner(
     account as UiWalletAccount,
     cluster?.id || "mainnet-beta"
