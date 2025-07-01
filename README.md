@@ -135,17 +135,7 @@ Try it now! 🚀
 
 #GorbaganaTestnet @sarv_shaktimaan @lex_node
 
-[Demo Link]
 ```
-
-## 🔗 Links & Resources
-
-- **Gorbagana Network**: <https://docs.gorbagana.wtf/>
-- **Backpack Wallet**: <https://backpack.app/>
-- **Community Telegram**: <https://t.me/+lw2vDTWJeacxMDhh>
-- **Bounty Program**: <https://earn.superteam.fun/listing/build-simple-and-fun-dappsgames-on-gorbagana-testnet/>
-
----
 
 **Built with 💜 for the Gorbagana community**
 
