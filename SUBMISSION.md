@@ -6,7 +6,7 @@
 
 - [x] **Working prototype**: Tank Shooter multiplayer game
 - [x] **Gorbagana testnet**: Uses `https://rpc.gorbagana.wtf/`
-- [x] **Native test tokens**: Requires 0.0001 $GOR gas fee
+- [x] **Native test tokens**: Requires 0.001 $GOR gas fee
 - [x] **Backpack wallet**: Primary supported wallet integration
 - [x] **README file**: Complete with game overview and Gorbagana integration details
 
@@ -48,7 +48,7 @@ Try it now! 🚀
 ### Testnet Integration (30 points) ✅
 
 - ✅ Uses Gorbagana RPC (`https://rpc.gorbagana.wtf/`)
-- ✅ $GOR token payment system (0.0001 per game)
+- ✅ $GOR token payment system (0.001 per game)
 - ✅ Backpack wallet integration
 - ✅ Real-time transaction processing
 - ✅ Clear blockchain interaction feedback
@@ -69,8 +69,18 @@ Try it now! 🚀
 ## 🔗 Submission Links
 
 1. **Bounty Program**: <https://earn.superteam.fun/listing/build-simple-and-fun-dappsgames-on-gorbagana-testnet/>
-2. **Gorbagana Docs**: <https://docs.gorbagana.wtf/>
-3. **Community Telegram**: <https://t.me/+lw2vDTWJeacxMDhh>
+2. **Gorbagana Explorer**: <https://explorer.gorbagana.wtf/>
+3. **Gorbagana Faucet**: <https://faucet.gorbagana.wtf/> (1-100 GOR per request, 24h limit)
+4. **Network Status**: <https://status.gorbagana.wtf/> (Currently: 128+ hours uptime)
+5. **GitHub**: <https://github.com/gorbagana-dev>
+
+## 📊 Network Information
+
+- **Current Status**: ✅ Healthy (128+ hours uptime)
+- **Current Slot**: 1,160,928+ (and growing)
+- **Total Supply**: 1,401,566,823+ GOR
+- **Faucet**: 1-100 GOR per wallet per 24 hours
+- **Success Rate**: 100% (last 100 faucet requests)
 
 ## 💡 Deployment Instructions
 
@@ -88,7 +98,7 @@ vercel
 
 ### Environment Variables for Production
 
-```
+```bash
 NEXT_PUBLIC_RPC_ENDPOINT=https://rpc.gorbagana.wtf/
 ```
 

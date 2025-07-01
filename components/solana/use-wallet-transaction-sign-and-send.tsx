@@ -1,4 +1,4 @@
-import { useWalletUi } from '@wallet-ui/react'
+import { useWalletUi } from "@wallet-ui/react";
 import {
   appendTransactionMessageInstruction,
   assertIsTransactionMessageWithSingleSendingSigner,
@@ -10,24 +10,26 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signAndSendTransactionMessageWithSigners,
   TransactionSendingSigner,
-} from 'gill'
+} from "gill";
 
 export function useWalletTransactionSignAndSend() {
-  const { client } = useWalletUi()
+  const { client } = useWalletUi();
 
   return async (ix: IInstruction, signer: TransactionSendingSigner) => {
-    const { value: latestBlockhash } = await client.rpc.getLatestBlockhash().send()
+    const { value: latestBlockhash } = await client.rpc
+      .getLatestBlockhash()
+      .send();
     const message = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(signer, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      (tx) => appendTransactionMessageInstruction(ix, tx),
-    )
+      (tx) => appendTransactionMessageInstruction(ix, tx)
+    );
 
-    assertIsTransactionMessageWithSingleSendingSigner(message)
+    assertIsTransactionMessageWithSingleSendingSigner(message);
 
-    const signature = await signAndSendTransactionMessageWithSigners(message)
+    const signature = await signAndSendTransactionMessageWithSigners(message);
 
-    return getBase58Decoder().decode(signature)
-  }
+    return getBase58Decoder().decode(signature);
+  };
 }

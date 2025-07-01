@@ -23,10 +23,11 @@ Tank Shooter is an engaging multiplayer mini-game where players:
 
 ### Blockchain Features
 
-- **Entry Fee**: 0.0001 $GOR per game session
+- **Entry Fee**: 0.001 $GOR per game session
 - **Real-time Transactions**: Leverages Gorbagana's sub-second finality
 - **Fair Play**: Blockchain-verified game entry and payment processing
-- **Transparent Economy**: All transactions visible on Gorbagana explorer
+- **Transparent Economy**: All transactions visible on [Gorbagana Explorer](https://explorer.gorbagana.wtf/)
+- **Network Status**: Monitor network health at [status.gorbagana.wtf](https://status.gorbagana.wtf/)
 
 ## 🚀 Quick Start
 
@@ -34,7 +35,7 @@ Tank Shooter is an engaging multiplayer mini-game where players:
 
 1. Install [Backpack Wallet](https://backpack.app/)
 2. Configure custom RPC to `https://rpc.gorbagana.wtf/`
-3. Get test $GOR tokens from [Gorbagana Telegram](https://t.me/+lw2vDTWJeacxMDhh)
+3. Get test $GOR tokens from [Gorbagana Faucet](https://faucet.gorbagana.wtf/) (1-100 GOR per request, 1 request per 24 hours)
 
 ### Playing the Game
 
@@ -122,7 +123,7 @@ This project is submitted for the **Gorbagana Testnet Bounty Program** with focu
 
 Ready to tweet? Use this template:
 
-```
+```text
 🎮 Just built Tank Shooter - a multiplayer tank battle game on @Gorbagana_chain testnet! 
 
 🔥 Features:
@@ -137,6 +138,6 @@ Try it now! 🚀
 
 ```
 
-**Built with 💜 for the Gorbagana community**
+## Built with 💜 for the Gorbagana community
 
-*Embracing the "trash chain" philosophy with serious gaming infrastructure*
+Embracing the "trash chain" philosophy with serious gaming infrastructure
