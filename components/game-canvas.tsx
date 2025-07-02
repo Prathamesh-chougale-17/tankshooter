@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress"; // Import the Progress component
 import { useWebSocket } from "@/hooks/use-websocket";
 import { GameEngine } from "@/lib/game-engine";
 import { ChatPanel } from "@/components/chat-panel";
@@ -94,6 +95,8 @@ export function GameCanvas({
     level: 1,
     kills: 0,
     health: 1000,
+    maxHealth: 1000,
+    isRegenerating: false,
   });
   const gameKey = 0; // Static key since we don't need re-rendering
 
@@ -223,7 +226,6 @@ export function GameCanvas({
     const interval = setInterval(updateLeaderboard, 1000);
     return () => clearInterval(interval);
   }, [isGameOver, gameKey]);
-
   // Game events tracking (without notifications)
   useEffect(() => {
     const prevStats = prevStatsRef.current;
@@ -234,12 +236,23 @@ export function GameCanvas({
       return;
     }
 
+    // Debug: Log regeneration state changes
+    if (gameStats.isRegenerating !== prevStats.isRegenerating) {
+      console.log(
+        `Health regeneration: ${
+          gameStats.isRegenerating ? "STARTED" : "STOPPED"
+        }`
+      );
+    }
+
     // Update previous stats for next comparison
     prevStatsRef.current = {
       score: gameStats.score,
       level: gameStats.level,
       kills: gameStats.kills,
       health: gameStats.health,
+      maxHealth: gameStats.maxHealth,
+      isRegenerating: gameStats.isRegenerating,
     };
   }, [gameStats]);
 
@@ -303,6 +316,8 @@ export function GameCanvas({
       level: 1,
       kills: 0,
       health: 1000,
+      maxHealth: 1000,
+      isRegenerating: false,
     };
     setLeaderboardData(undefined);
 
@@ -415,7 +430,7 @@ export function GameCanvas({
           </div>
         </div>
 
-        {/* Enhanced Health Bar - Moved higher and made smaller */}
+        {/* Enhanced Health Bar with Shadcn Progress component */}
         <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 pointer-events-auto">
           <Card
             className={`bg-black/50 border-white/20 px-2 py-1 gap-0 ${
@@ -438,27 +453,33 @@ export function GameCanvas({
                 </span>
               )}
             </div>
-            <div className="w-32 h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600 mb-1">
-              <div
-                className={`h-full transition-all duration-500 ${
+            <div className="relative w-36 mb-1">
+              <Progress
+                value={Math.max(0, healthPercentage)}
+                className={`h-3 ${
                   healthPercentage > 75
-                    ? "bg-gradient-to-r from-green-400 to-green-500"
+                    ? "bg-gray-700 [&>div]:bg-gradient-to-r [&>div]:from-green-400 [&>div]:to-green-500"
                     : healthPercentage > 50
-                    ? "bg-gradient-to-r from-yellow-400 to-green-400"
+                    ? "bg-gray-700 [&>div]:bg-gradient-to-r [&>div]:from-yellow-400 [&>div]:to-green-400"
                     : healthPercentage > 25
-                    ? "bg-gradient-to-r from-orange-400 to-yellow-400"
+                    ? "bg-gray-700 [&>div]:bg-gradient-to-r [&>div]:from-orange-400 [&>div]:to-yellow-400"
                     : healthPercentage > 0
-                    ? "bg-gradient-to-r from-red-500 to-orange-400"
-                    : "bg-gray-600"
+                    ? "bg-gray-700 [&>div]:bg-gradient-to-r [&>div]:from-red-500 [&>div]:to-orange-400"
+                    : "bg-gray-700 [&>div]:bg-gray-600"
                 } ${
                   gameStats.isRegenerating &&
                   healthPercentage > 0 &&
                   healthPercentage < 100
-                    ? "animate-pulse"
-                    : ""
+                    ? "border border-green-500/30 [&>div]:animate-pulse"
+                    : "border border-gray-600"
                 }`}
-                style={{ width: `${Math.max(0, healthPercentage)}%` }}
               />
+              {/* Regeneration glow effect */}
+              {gameStats.isRegenerating &&
+                healthPercentage > 0 &&
+                healthPercentage < 100 && (
+                  <div className="absolute inset-0 bg-green-400/20 animate-pulse rounded-full pointer-events-none" />
+                )}
             </div>
             <div className="text-center">
               <span className="font-mono text-xs text-gray-300">

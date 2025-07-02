@@ -619,6 +619,8 @@ export class GameEngine {
   private updateStats(player: Tank) {
     const now = Date.now();
     const timeSinceLastShot = now - this.lastPlayerShot;
+
+    // Check if health is regenerating
     const isRegenerating =
       player.health < player.maxHealth &&
       player.health > 0 &&
@@ -627,13 +629,9 @@ export class GameEngine {
     // Calculate level based on score (every 1000 points = 1 level)
     const newLevel = Math.floor(player.score / 1000) + 1;
 
-    // Check if player leveled up
+    // Update level without changing health
     if (newLevel > player.level) {
       player.level = newLevel;
-      // Increase max health slightly with each level
-      player.maxHealth = 1000 + (player.level - 1) * 50;
-      // Heal player on level up
-      player.health = player.maxHealth;
     }
 
     this.options.onStatsUpdate({
@@ -1053,6 +1051,7 @@ export class GameEngine {
       player.health = Math.min(player.maxHealth, player.health + 3);
     }
 
+    // Update stats after health regeneration
     this.updateStats(player);
   }
 
