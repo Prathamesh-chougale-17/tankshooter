@@ -89,9 +89,20 @@ export function GameCanvas({
       type: "system",
     },
   ]);
+  const prevStatsRef = useRef({
+    score: 0,
+    level: 1,
+    kills: 0,
+    health: 1000,
+  });
   const gameKey = 0; // Static key since we don't need re-rendering
 
   const { socket, isConnected, sendMessage } = useWebSocket();
+
+  // Connection status notifications
+  useEffect(() => {
+    // Connection status tracking without notifications
+  }, [isConnected, playMode]);
 
   const handleGameOver = useCallback((data: GameOverData) => {
     setGameOverData(data);
@@ -102,57 +113,69 @@ export function GameCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Clear any existing game engine
-    if (gameEngineRef.current) {
-      gameEngineRef.current.stop();
-      gameEngineRef.current = null;
-    }
+    try {
+      // Clear any existing game engine
+      if (gameEngineRef.current) {
+        gameEngineRef.current.stop();
+        gameEngineRef.current = null;
+      }
 
-    // Ensure canvas is properly sized
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+      // Ensure canvas is properly sized
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
 
-    // Create new game engine
-    const gameEngine = new GameEngine(canvas, {
-      playerName,
-      tankClass,
-      gameMode,
-      sendMessage: playMode === "multiplayer" ? sendMessage : undefined, // Only enable multiplayer for multiplayer mode
-      enableBots: true, // Always enable bots for now - they provide good gameplay
-      onStatsUpdate: (stats) => {
-        setGameStats(stats);
-      },
-      onGameOver: handleGameOver,
-    });
+      // Create new game engine
+      const gameEngine = new GameEngine(canvas, {
+        playerName,
+        tankClass,
+        gameMode,
+        sendMessage: playMode === "multiplayer" ? sendMessage : undefined, // Only enable multiplayer for multiplayer mode
+        enableBots: true, // Always enable bots for now - they provide good gameplay
+        onStatsUpdate: (stats) => {
+          setGameStats(stats);
+        },
+        onGameOver: handleGameOver,
+      });
 
-    gameEngineRef.current = gameEngine;
-    gameEngine.start();
+      gameEngineRef.current = gameEngine;
+      gameEngine.start();
 
-    // Handle WebSocket messages
-    if (socket) {
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+      // Handle WebSocket messages
+      if (socket) {
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
 
-        // Handle chat messages in the UI
-        if (data.type === "chatMessage" && data.message) {
-          const newMessage: ChatMessage = {
-            id: data.message.id || Date.now().toString(),
-            playerName: data.message.playerName || "Unknown",
-            message: data.message.message || "",
-            timestamp: data.message.timestamp || Date.now(),
-            type: data.message.type || "chat",
-          };
-          setChatMessages((prev) => [...prev, newMessage]);
-        }
+          // Handle chat messages in the UI
+          if (data.type === "chatMessage" && data.message) {
+            const newMessage: ChatMessage = {
+              id: data.message.id || Date.now().toString(),
+              playerName: data.message.playerName || "Unknown",
+              message: data.message.message || "",
+              timestamp: data.message.timestamp || Date.now(),
+              type: data.message.type || "chat",
+            };
+            setChatMessages((prev) => [...prev, newMessage]);
 
-        // Pass to game engine for other message types
-        gameEngine.handleServerMessage(data);
+            // System messages logged to console instead of toast
+            if (newMessage.type === "system" || newMessage.type === "kill") {
+              console.log(
+                `[${newMessage.type.toUpperCase()}]`,
+                newMessage.message
+              );
+            }
+          }
+
+          // Pass to game engine for other message types
+          gameEngine.handleServerMessage(data);
+        };
+      }
+
+      return () => {
+        gameEngine.stop();
       };
+    } catch (error) {
+      console.error("Game initialization error:", error);
     }
-
-    return () => {
-      gameEngine.stop();
-    };
   }, [
     playerName,
     tankClass,
@@ -201,6 +224,25 @@ export function GameCanvas({
     return () => clearInterval(interval);
   }, [isGameOver, gameKey]);
 
+  // Game events tracking (without notifications)
+  useEffect(() => {
+    const prevStats = prevStatsRef.current;
+
+    // Skip initial render
+    if (prevStats.score === 0 && gameStats.score === 0) {
+      prevStatsRef.current = gameStats;
+      return;
+    }
+
+    // Update previous stats for next comparison
+    prevStatsRef.current = {
+      score: gameStats.score,
+      level: gameStats.level,
+      kills: gameStats.kills,
+      health: gameStats.health,
+    };
+  }, [gameStats]);
+
   // Handle ESC key for game over screen
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -216,23 +258,32 @@ export function GameCanvas({
   const handleUpgrade = (upgradeType: string) => {
     if (isGameOver) return;
 
+    const upgradeName = upgradeType === "max-health" ? "Max Health" : "Damage";
+
     gameEngineRef.current?.upgradePlayer(upgradeType);
     sendMessage({
       type: "upgrade",
       upgradeType,
       playerId: gameEngineRef.current?.getPlayerId(),
     });
+
+    // Upgrade applied silently
+    console.log(`${upgradeName} upgraded!`);
   };
 
   const handleChatMessage = (message: string) => {
     if (isGameOver) return;
 
-    sendMessage({
-      type: "chat",
-      message,
-      playerName,
-      playerId: gameEngineRef.current?.getPlayerId(),
-    });
+    try {
+      sendMessage({
+        type: "chat",
+        message,
+        playerName,
+        playerId: gameEngineRef.current?.getPlayerId(),
+      });
+    } catch (error) {
+      console.error("Chat error:", error);
+    }
   };
 
   const handlePlayAgain = () => {
@@ -247,6 +298,12 @@ export function GameCanvas({
       maxHealth: 1000,
       isRegenerating: false,
     });
+    prevStatsRef.current = {
+      score: 0,
+      level: 1,
+      kills: 0,
+      health: 1000,
+    };
     setLeaderboardData(undefined);
 
     // Reset UI panels
@@ -304,6 +361,23 @@ export function GameCanvas({
                   </span>
                   <span>
                     Kills: <strong>{gameStats.kills}</strong>
+                  </span>
+                  <span className="text-orange-300">
+                    Damage: <strong>{50 + (gameStats.level - 1) * 10}</strong>
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-xs text-gray-300">Next Level:</span>
+                  <div className="w-24 h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-300"
+                      style={{
+                        width: `${((gameStats.score % 1000) / 1000) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-300">
+                    {1000 - (gameStats.score % 1000)} pts
                   </span>
                 </div>
               </div>
@@ -476,6 +550,9 @@ export function GameCanvas({
                 <div className="text-green-400 flex items-center gap-1">
                   <Heart className="h-3 w-3" />
                   <span>Health regens when not shooting</span>
+                </div>
+                <div className="text-purple-400 text-xs mt-1">
+                  ⚡ Level up every 1000 points for stronger bullets!
                 </div>
               </div>
             </div>

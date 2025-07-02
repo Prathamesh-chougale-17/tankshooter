@@ -624,6 +624,18 @@ export class GameEngine {
       player.health > 0 &&
       timeSinceLastShot > this.healthRegenCooldown;
 
+    // Calculate level based on score (every 1000 points = 1 level)
+    const newLevel = Math.floor(player.score / 1000) + 1;
+
+    // Check if player leveled up
+    if (newLevel > player.level) {
+      player.level = newLevel;
+      // Increase max health slightly with each level
+      player.maxHealth = 1000 + (player.level - 1) * 50;
+      // Heal player on level up
+      player.health = player.maxHealth;
+    }
+
     this.options.onStatsUpdate({
       score: player.score,
       level: player.level,
@@ -1092,6 +1104,11 @@ export class GameEngine {
     const bulletSpeed = 800;
     const bulletSize = 8;
 
+    // Calculate bullet damage based on player level
+    const baseDamage = 50;
+    const damagePerLevel = 10;
+    const bulletDamage = baseDamage + (player.level - 1) * damagePerLevel;
+
     const bullet: Bullet = {
       id: Math.random().toString(36).substr(2, 9),
       position: { ...player.position },
@@ -1099,7 +1116,7 @@ export class GameEngine {
         x: Math.cos(player.rotation) * bulletSpeed,
         y: Math.sin(player.rotation) * bulletSpeed,
       },
-      damage: 50,
+      damage: bulletDamage,
       ownerId: player.id,
       size: bulletSize,
       color: player.color,
