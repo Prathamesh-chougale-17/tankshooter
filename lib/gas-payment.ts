@@ -28,8 +28,8 @@ export interface GasPaymentResult {
   error?: string;
 }
 
-export const GAS_FEE_AMOUNT = 100000; // GOR
-export const GAS_FEE_LAMPORTS = Math.floor(0.001 * 1_000_000_000); // 0.001 GOR in lamports
+export const GAS_FEE_AMOUNT = 0.001; // GOR
+export const GAS_FEE_LAMPORTS = Math.floor(GAS_FEE_AMOUNT * 1_000_000_000); // 0.001 GOR in lamports
 export const GORBAGANA_RPC = "https://rpc.gorbagana.wtf";
 
 // Game treasury address - the address you specified
@@ -67,7 +67,7 @@ export async function payGameGasFee(
       .getBalance(fromAddress)
       .send();
     const balance = Number(balanceResponse.value || balanceResponse);
-    console.log("💳 Current balance:", balance / 1_000_000_000, "SOL");
+    console.log("💳 Current balance:", balance / 1_000_000_000, "GOR");
     console.log("🔍 Raw balance response:", balanceResponse);
 
     if (balance < GAS_FEE_LAMPORTS + 5000) {
@@ -75,7 +75,7 @@ export async function payGameGasFee(
       throw new Error(
         "Insufficient balance. Need at least " +
           (GAS_FEE_LAMPORTS + 5000) / 1_000_000_000 +
-          " SOL"
+          " GOR"
       );
     }
 
@@ -83,7 +83,7 @@ export async function payGameGasFee(
     const { signature } = await createGasPaymentTransaction({
       txSigner,
       destination: toAddress,
-      amount: GAS_FEE_AMOUNT,
+      amount: GAS_FEE_LAMPORTS,
       client: customClient,
     });
 
