@@ -57,6 +57,7 @@ interface GameOverData {
   prizeAmount?: number;
   entryFee?: number;
   playerQualified?: boolean;
+  playerWon?: boolean;
 }
 
 export function GameCanvas({
@@ -286,21 +287,31 @@ export function GameCanvas({
   useEffect(() => {
     const updateLeaderboard = () => {
       if (gameEngineRef.current && !isGameOver) {
-        // Get both multiplayer tanks and all tanks
-        const multiplayerTanks = gameEngineRef.current.getMultiplayerTanks();
-        const allTanks = gameEngineRef.current.getGameState().tanks;
+        // In competition mode, show only the original 8 participants
+        if (isCompetitionMode) {
+          const competitionParticipants =
+            gameEngineRef.current.getCompetitionParticipants();
+          setLeaderboardData({
+            tanks: competitionParticipants,
+            playerId: gameEngineRef.current.getPlayerId(),
+          });
+        } else {
+          // Get both multiplayer tanks and all tanks for regular modes
+          const multiplayerTanks = gameEngineRef.current.getMultiplayerTanks();
+          const allTanks = gameEngineRef.current.getGameState().tanks;
 
-        // Show multiplayer tanks if there are real players, otherwise show all tanks
-        setLeaderboardData({
-          tanks: multiplayerTanks.size > 1 ? multiplayerTanks : allTanks,
-          playerId: gameEngineRef.current.getPlayerId(),
-        });
+          // Show multiplayer tanks if there are real players, otherwise show all tanks
+          setLeaderboardData({
+            tanks: multiplayerTanks.size > 1 ? multiplayerTanks : allTanks,
+            playerId: gameEngineRef.current.getPlayerId(),
+          });
+        }
       }
     };
 
     const interval = setInterval(updateLeaderboard, 1000);
     return () => clearInterval(interval);
-  }, [isGameOver, gameKey]);
+  }, [isGameOver, gameKey, isCompetitionMode]);
   // Game events tracking (without notifications)
   useEffect(() => {
     const prevStats = prevStatsRef.current;

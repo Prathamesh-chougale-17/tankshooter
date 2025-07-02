@@ -84,6 +84,7 @@ interface GameOverData {
   prizeAmount?: number;
   entryFee?: number;
   playerQualified?: boolean;
+  playerWon?: boolean;
 }
 
 interface Bot extends Tank {
@@ -426,6 +427,7 @@ export class GameEngine {
   private competitionBotsSpawned = false;
   private competitionStandardHealth = 400;
   private competitionStandardRegenRate = 10; // Health regenerated per second
+  private competitionParticipants: Map<string, Tank> = new Map(); // Track all original participants
 
   // World boundaries
   private worldBounds = {
@@ -685,14 +687,55 @@ export class GameEngine {
   private triggerGameOver(killedBy?: string) {
     if (this.isGameOver) return; // Prevent multiple game over triggers
 
-    // In competition mode, player can spectate after death
-    // Game engine continues running, but player controls are disabled
-    const isPlayerDeath =
-      this.isCompetitionMode && !killedBy?.includes("TIME'S UP");
+    // In competition mode, check if this should trigger competition end
+    if (this.isCompetitionMode) {
+      // Update the participant record with final stats before removal
+      const player = this.gameState.tanks.get(this.playerId);
+      if (player) {
+        this.competitionParticipants.set(this.playerId, { ...player });
+      }
 
+      // Remove the player's tank from the game state
+      this.gameState.tanks.delete(this.playerId);
+
+      // Set player as eliminated but don't end the game yet - let the competition continue
+      this.isGameOver = true; // Player is out of the game
+      // Keep the game running for spectating (isRunning stays true)
+
+      // Clear player inputs but keep the game running
+      this.keys.clear();
+      this.autoFire = false;
+
+      console.log(
+        "Player eliminated but competition continues - spectating mode activated"
+      );
+
+      // Create player elimination game over data
+      const survivalTime = Date.now() - this.gameStartTime;
+      const gameOverData: GameOverData = {
+        finalScore: player?.score || 0,
+        finalLevel: player?.level || 1,
+        totalKills: player?.kills || 0,
+        survivalTime: Math.floor(survivalTime / 1000),
+        cause: killedBy
+          ? `Destroyed by ${killedBy}! You can spectate the remaining competition.`
+          : "You were eliminated from the competition. You can spectate the remaining competition.",
+        killedBy: killedBy,
+        isCompetitionMode: true,
+        timeUp: false,
+        prizeAmount: 1.0,
+        entryFee: 0.5,
+        playerQualified: false, // Player was eliminated, so cannot win prize
+      };
+
+      // Trigger the callback for player elimination
+      this.options.onGameOver(gameOverData);
+      return;
+    }
+
+    // Non-competition mode - original logic
     this.isGameOver = true;
-    // Only stop the game if not in competition mode or if it's a time-up event
-    this.isRunning = isPlayerDeath ? true : false;
+    this.isRunning = false;
 
     const player = this.gameState.tanks.get(this.playerId);
     const survivalTime = Date.now() - this.gameStartTime;
@@ -701,79 +744,127 @@ export class GameEngine {
       finalScore: player?.score || 0,
       finalLevel: player?.level || 1,
       totalKills: player?.kills || 0,
-      survivalTime: Math.floor(survivalTime / 1000), // Convert to seconds
+      survivalTime: Math.floor(survivalTime / 1000),
       cause: killedBy ? "Destroyed by enemy" : "Unknown",
       killedBy: killedBy,
     };
-
-    // Add competition-specific information if in competition mode
-    if (this.isCompetitionMode) {
-      const playerKills = player?.kills || 0;
-      const minKillsRequired = 1; // Requirement for prize qualification
-      const entryFee = 0.5; // GOR entry fee
-      const prizeAmount = 1.0; // GOR prize
-
-      // Find the highest kill count among all tanks
-      let highestKills = 0;
-      let winnerName = "";
-      let tieWinnerTime = Infinity;
-
-      // Check all tanks for highest kills
-      this.gameState.tanks.forEach((tank) => {
-        if (tank.kills > highestKills) {
-          highestKills = tank.kills;
-          winnerName = tank.name;
-          tieWinnerTime = this.competitionKillTimes.get(tank.id) || Infinity;
-        }
-        // Tiebreaker: first to reach the kill count
-        else if (tank.kills === highestKills && highestKills > 0) {
-          const tankTime = this.competitionKillTimes.get(tank.id) || Infinity;
-          if (tankTime < tieWinnerTime) {
-            winnerName = tank.name;
-            tieWinnerTime = tankTime;
-          }
-        }
-      });
-
-      const playerQualified = playerKills >= minKillsRequired;
-
-      // Add competition fields to gameOverData
-      Object.assign(gameOverData, {
-        isCompetitionMode: true,
-        winner: winnerName || "No winner",
-        timeUp: false, // This is set by the timer in game-canvas.tsx when time runs out
-        prizeAmount: prizeAmount,
-        entryFee: entryFee,
-        playerQualified: playerQualified,
-        cause: killedBy
-          ? `Destroyed by ${killedBy}! Competition ended.`
-          : "You were eliminated from the competition.",
-      });
-    }
 
     // Clear all inputs
     this.keys.clear();
     this.autoFire = false;
 
-    // For competition mode & player death: don't stop bots or animation frame
-    // This allows spectating to continue
-    if (!isPlayerDeath) {
-      // Stop all bots
-      this.bots.clear();
+    // Stop all bots
+    this.bots.clear();
 
-      // Cancel animation frame
-      if (this.animationFrameId) {
-        cancelAnimationFrame(this.animationFrameId);
-        this.animationFrameId = null;
+    // Cancel animation frame
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    // Trigger game over callback
+    this.options.onGameOver(gameOverData);
+  }
+
+  private checkCompetitionEndCondition() {
+    if (!this.isCompetitionMode || this.isGameOver) return;
+
+    // Count alive participants
+    const aliveTanks = Array.from(this.gameState.tanks.values());
+    const aliveCount = aliveTanks.length;
+
+    // If only one or no tanks remain, end the competition
+    if (aliveCount <= 1) {
+      let winner = "No winner";
+      let highestKills = 0;
+      let tieWinnerTime = Infinity;
+
+      // Determine winner from all original participants (alive or dead)
+      for (const [id, participant] of this.competitionParticipants) {
+        if (participant.kills > highestKills) {
+          highestKills = participant.kills;
+          winner = participant.name;
+          tieWinnerTime = this.competitionKillTimes.get(id) || Infinity;
+        }
+        // Tiebreaker: first to reach the kill count
+        else if (participant.kills === highestKills && highestKills > 0) {
+          const participantTime = this.competitionKillTimes.get(id) || Infinity;
+          if (participantTime < tieWinnerTime) {
+            winner = participant.name;
+            tieWinnerTime = participantTime;
+          }
+        }
       }
-    } else {
+
+      // If there's exactly one alive tank, they are the winner (even with 0 kills)
+      if (aliveCount === 1) {
+        const lastSurvivor = aliveTanks[0];
+        // Only declare them winner if they have kills, or if no one has kills
+        if (lastSurvivor.kills >= highestKills) {
+          winner = lastSurvivor.name;
+        }
+      }
+
       console.log(
-        "Player eliminated but game continues - spectating mode activated"
+        `Competition ended: Winner is ${winner} with ${highestKills} kills`
       );
 
-      // Remove the player's tank from the game state to prevent them from playing
-      this.gameState.tanks.delete(this.playerId);
+      // Trigger game over with competition end
+      this.triggerCompetitionEnd(winner, false);
     }
+  }
+
+  private triggerCompetitionEnd(winner: string, timeUp: boolean) {
+    if (this.isGameOver) return;
+
+    this.isGameOver = true;
+    this.isRunning = false;
+
+    const player = this.gameState.tanks.get(this.playerId);
+    const survivalTime = Date.now() - this.gameStartTime;
+
+    // Find highest kills for prize qualification check
+    let highestKills = 0;
+    for (const participant of this.competitionParticipants.values()) {
+      if (participant.kills > highestKills) {
+        highestKills = participant.kills;
+      }
+    }
+
+    const playerKills = player?.kills || 0;
+    const playerName = this.options.playerName;
+
+    // Player qualifies if they are the winner AND have at least 1 kill
+    const playerQualified = winner === playerName && playerKills >= 1;
+    const playerWon = winner === playerName;
+
+    const gameOverData: GameOverData = {
+      finalScore: player?.score || 0,
+      finalLevel: player?.level || 1,
+      totalKills: playerKills,
+      survivalTime: Math.floor(survivalTime / 1000),
+      cause: timeUp
+        ? "Time's up! Competition ended."
+        : `Competition ended! Winner: ${winner}`,
+      isCompetitionMode: true,
+      winner: winner,
+      timeUp: timeUp,
+      prizeAmount: 1.0,
+      entryFee: 0.5,
+      playerQualified: playerQualified,
+      playerWon: playerWon,
+    };
+
+    // Stop all game activity
+    this.bots.clear();
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    // Clear inputs
+    this.keys.clear();
+    this.autoFire = false;
 
     // Trigger game over callback
     this.options.onGameOver(gameOverData);
@@ -927,14 +1018,16 @@ export class GameEngine {
       this.camera.y = -currentPlayer.position.y + this.canvas.height / 2;
     }
 
-    // Spawn initial wave of bots
-    for (let i = 0; i < 6; i++) {
-      setTimeout(() => {
-        if (this.isRunning && !this.isGameOver) {
-          const difficulty = this.getDynamicDifficulty();
-          this.spawnBot(difficulty);
-        }
-      }, i * 500);
+    // Spawn initial wave of bots (only in non-competition mode)
+    if (!this.isCompetitionMode) {
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => {
+          if (this.isRunning && !this.isGameOver) {
+            const difficulty = this.getDynamicDifficulty();
+            this.spawnBot(difficulty);
+          }
+        }, i * 500);
+      }
     }
 
     // Start game loop
@@ -967,6 +1060,11 @@ export class GameEngine {
     this.updateCollisions();
     this.updateCamera();
     this.spawnBotsIfNeeded();
+
+    // Check for competition end condition (only one participant left alive)
+    if (this.isCompetitionMode) {
+      this.checkCompetitionEndCondition();
+    }
 
     // Send multiplayer updates
     this.sendMultiplayerUpdates();
@@ -1051,20 +1149,18 @@ export class GameEngine {
               }
             }
 
-            // Respawn bot if it was a bot
+            // Respawn bot if it was a bot (only in non-competition mode)
             if (tankId.startsWith("bot_")) {
+              // In competition mode, update the participant record with final stats before removal
+              if (this.isCompetitionMode) {
+                this.competitionParticipants.set(tankId, { ...tank });
+              }
+
               this.gameState.tanks.delete(tankId);
               this.bots.delete(tankId);
 
-              // In competition mode, bots can kill each other but we keep a fixed count
-              if (this.isCompetitionMode) {
-                // Respawn with same competition settings
-                setTimeout(() => {
-                  if (!this.isGameOver) {
-                    this.spawnCompetitionBot();
-                  }
-                }, 1000);
-              } else {
+              // In competition mode, bots that die stay dead
+              if (!this.isCompetitionMode) {
                 // Normal mode respawn
                 setTimeout(() => {
                   if (!this.isGameOver) {
@@ -1090,26 +1186,14 @@ export class GameEngine {
   private spawnBotsIfNeeded() {
     if (this.isGameOver || !this.enableBots) return;
 
-    // In competition mode, we initialize all bots at the start
-    // and maintain exactly 7 bots
+    // In competition mode, bots are only spawned once at the start
+    // No respawning - dead bots stay dead
     if (this.isCompetitionMode) {
       // Initialize competition bots if not already done
       if (!this.competitionBotsSpawned) {
         this.initializeCompetitionBots();
       }
-
-      // Ensure we always have exactly 7 bots
-      const currentBotCount = Array.from(this.gameState.tanks.values()).filter(
-        (tank) => tank.id.startsWith("bot_")
-      ).length;
-
-      if (currentBotCount < 7) {
-        // Spawn missing bots
-        for (let i = 0; i < 7 - currentBotCount; i++) {
-          this.spawnCompetitionBot();
-        }
-      }
-
+      // Do not respawn bots in competition mode
       return;
     }
 
@@ -1655,11 +1739,30 @@ export class GameEngine {
     return this.isGameOver;
   }
 
+  public getCompetitionParticipants() {
+    if (!this.isCompetitionMode) return new Map<string, Tank>();
+
+    // Update participants with current stats from live tanks
+    for (const [id, tank] of this.gameState.tanks) {
+      if (this.competitionParticipants.has(id)) {
+        this.competitionParticipants.set(id, { ...tank });
+      }
+    }
+
+    return this.competitionParticipants;
+  }
+
   private initializeCompetitionBots() {
     if (!this.isCompetitionMode || this.competitionBotsSpawned) return;
 
     // Clear any existing bots
     this.bots.clear();
+
+    // Track the player as a competition participant
+    const player = this.gameState.tanks.get(this.playerId);
+    if (player) {
+      this.competitionParticipants.set(this.playerId, { ...player });
+    }
 
     // Spawn 7 bots with "hard" difficulty for competition
     for (let i = 0; i < 7; i++) {
@@ -1723,5 +1826,8 @@ export class GameEngine {
 
     this.gameState.tanks.set(botId, bot);
     this.bots.set(botId, new AIBot(bot, this.gameState, this.worldBounds));
+
+    // Track this bot as a competition participant
+    this.competitionParticipants.set(botId, { ...bot });
   }
 }

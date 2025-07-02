@@ -26,6 +26,7 @@ interface GameOverData {
   prizeAmount?: number;
   entryFee?: number;
   playerQualified?: boolean;
+  playerWon?: boolean;
 }
 
 interface GameOverScreenProps {
@@ -197,15 +198,12 @@ export function GameOverScreen({
               <div className="text-center mb-3">
                 <div className="text-sm text-gray-300">Winner</div>
                 <div className="text-xl font-bold">
-                  {gameOverData.winner === "Player"
-                    ? "YOU"
-                    : gameOverData.winner}
+                  {gameOverData.playerWon ? "YOU" : gameOverData.winner}
                 </div>
               </div>
 
               {/* Prize status */}
-              {gameOverData.winner === "Player" &&
-              gameOverData.playerQualified ? (
+              {gameOverData.playerWon && gameOverData.playerQualified ? (
                 <div className="bg-green-500/20 border-2 border-green-500/50 rounded-lg p-3 text-center animate-pulse">
                   <div className="text-xl text-green-400 font-bold mb-2 flex items-center justify-center">
                     <Trophy className="h-5 w-5 mr-2 text-yellow-400" />
