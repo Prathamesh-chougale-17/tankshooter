@@ -998,32 +998,30 @@ export default function HomePage() {
               Competition Mode Entry
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300 text-base leading-relaxed">
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-4">
-                <p className="font-bold text-yellow-400 text-lg mb-2">
+              <p className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-4">
+                <span className="font-bold text-yellow-400 text-lg mb-2">
                   Entry Fee: 0.5 GOR
-                </p>
-                <p className="text-slate-300 mb-2">
+                </span>
+                <br />
+                <span className="text-slate-300">
                   Win the tournament to earn 1 GOR prize!
-                </p>
-              </div>
+                </span>
+              </p>
 
-              <p className="mb-3 font-medium text-white">Competition Rules:</p>
-              <ul className="list-disc list-inside space-y-2 mb-4">
-                <li className="text-slate-300">
-                  8 players (you + 7 advanced bots)
-                </li>
+              <span className="mb-3 font-medium text-white">
+                Competition Rules:
+              </span>
+              <p className="list-disc list-inside space-y-2 mb-4">
+                <li className="text-slate-300">8 players</li>
                 <li className="text-slate-300">3 minute timed match</li>
                 <li className="text-slate-300">All players have equal stats</li>
-                <li className="text-slate-300">
-                  Bots will attack each other and you
-                </li>
                 <li className="text-slate-300">
                   Winner has most kills (minimum 1 to qualify)
                 </li>
                 <li className="text-slate-300">
                   Winner takes all - 1 GOR prize
                 </li>
-              </ul>
+              </p>
 
               <p className="text-slate-300 mb-2">
                 If you&apos;re eliminated, you can continue watching the
