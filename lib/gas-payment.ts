@@ -28,7 +28,7 @@ export interface GasPaymentResult {
   error?: string;
 }
 
-export const GAS_FEE_AMOUNT = 1; // GOR
+export const GAS_FEE_AMOUNT = 100000; // GOR
 export const GAS_FEE_LAMPORTS = Math.floor(0.001 * 1_000_000_000); // 0.001 GOR in lamports
 export const GORBAGANA_RPC = "https://rpc.gorbagana.wtf";
 
