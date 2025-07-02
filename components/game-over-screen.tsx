@@ -206,12 +206,14 @@ export function GameOverScreen({
               {/* Prize status */}
               {gameOverData.winner === "Player" &&
               gameOverData.playerQualified ? (
-                <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center">
-                  <div className="text-green-400 font-bold mb-1">
+                <div className="bg-green-500/20 border-2 border-green-500/50 rounded-lg p-3 text-center animate-pulse">
+                  <div className="text-xl text-green-400 font-bold mb-2 flex items-center justify-center">
+                    <Trophy className="h-5 w-5 mr-2 text-yellow-400" />
                     You won {gameOverData.prizeAmount} GOR!
+                    <Trophy className="h-5 w-5 ml-2 text-yellow-400" />
                   </div>
-                  <div className="text-xs text-green-300">
-                    Prize has been transferred to your wallet
+                  <div className="text-sm text-green-300 bg-green-500/10 p-2 rounded">
+                    Congratulations! Prize has been transferred to your wallet
                   </div>
                 </div>
               ) : gameOverData.playerQualified ? (
@@ -221,6 +223,15 @@ export function GameOverScreen({
                   </div>
                   <div className="text-xs text-yellow-300">
                     But another player won the competition
+                  </div>
+                </div>
+              ) : gameOverData.winner === gameOverData.killedBy ? (
+                <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-center">
+                  <div className="text-red-400 font-bold">
+                    You were eliminated by the winner!
+                  </div>
+                  <div className="text-xs text-red-300">
+                    {gameOverData.winner} won the competition
                   </div>
                 </div>
               ) : (

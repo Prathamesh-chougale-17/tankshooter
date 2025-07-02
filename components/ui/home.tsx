@@ -51,6 +51,7 @@ export default function HomePage() {
   const [isPayingGas, setIsPayingGas] = useState(false);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
   const [showWalletAlert, setShowWalletAlert] = useState(false);
+  const [showCompetitionAlert, setShowCompetitionAlert] = useState(false);
 
   const { account } = useWalletUi();
   const txSigner = useWalletUiSigner();
@@ -191,7 +192,7 @@ export default function HomePage() {
       return;
     }
 
-    // Special handling for competition mode - check balance
+    // Special handling for competition mode - check balance and show dialog
     if (playMode === "competition") {
       // Validate wallet has enough balance for competition fee
       if (
@@ -205,21 +206,12 @@ export default function HomePage() {
         return;
       }
 
-      // Extra confirmation for competition mode due to higher fee
-      if (
-        !window.confirm(
-          "Competition Mode requires a 0.5 GOR entry fee.\n\n" +
-            "• 8 players (you + 7 advanced bots)\n" +
-            "• 3 minute match\n" +
-            "• Winner with most kills (minimum 1) gets 1 GOR prize\n\n" +
-            "Do you want to continue?"
-        )
-      ) {
-        return;
-      }
+      // Show competition confirmation dialog
+      setShowCompetitionAlert(true);
+      return;
     }
 
-    // Show confirmation before payment
+    // Show confirmation before payment for other modes
     const effectiveMode =
       playMode === "auto" ? (isConnected ? "multiplayer" : "bots") : playMode;
 
@@ -228,24 +220,19 @@ export default function HomePage() {
         ? "Enter multiplayer battle"
         : effectiveMode === "bots"
         ? "Start training with bots"
-        : effectiveMode === "competition"
-        ? "Enter competition"
         : "Begin mission";
 
-    // Use the correct fee amount depending on the mode
-    const feeAmount = effectiveMode === "competition" ? "0.5" : "0.001";
+    // Use the correct fee amount (always 0.001 for non-competition modes)
+    const feeAmount = "0.001";
 
     toast.info("Starting game...", {
-      description: `${modeText} • Paying ${feeAmount} GOR entry fee${
-        effectiveMode === "competition" ? " (Competition Mode)" : ""
-      }`,
+      description: `${modeText} • Paying ${feeAmount} GOR entry fee`,
       duration: 2000,
     });
 
     // Pay gas fee before starting the game
     try {
       setIsPayingGas(true);
-      const feeAmount = playMode === "competition" ? "0.5" : "0.001";
       toast.loading("Processing payment...", {
         description: `Signing transaction and paying ${feeAmount} GOR fee`,
         id: "payment-toast",
@@ -429,20 +416,47 @@ export default function HomePage() {
                       {playMode === "competition" ? "0.5 GOR" : "0.001 GOR"}
                     </span>
                   </p>
-                  {balanceQuery.data?.value &&
-                    Number(balanceQuery.data.value) >= 1000000 && (
-                      <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-semibold border border-emerald-500/30">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                        Sufficient Balance
-                      </div>
-                    )}
-                  {balanceQuery.data?.value &&
-                    Number(balanceQuery.data.value) < 1000000 && (
-                      <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-400 px-4 py-2 rounded-full text-sm font-semibold border border-amber-500/30">
-                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-                        Need More GOR
-                      </div>
-                    )}
+                  {balanceQuery.data?.value && (
+                    <div className="space-y-2">
+                      {/* Regular mode balance check */}
+                      {playMode !== "competition" &&
+                        Number(balanceQuery.data.value) >= 1000000 && (
+                          <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-semibold border border-emerald-500/30">
+                            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                            Sufficient Balance
+                          </div>
+                        )}
+                      {playMode !== "competition" &&
+                        Number(balanceQuery.data.value) < 1000000 && (
+                          <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-400 px-4 py-2 rounded-full text-sm font-semibold border border-amber-500/30">
+                            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                            Need More GOR
+                          </div>
+                        )}
+
+                      {/* Competition mode balance check */}
+                      {playMode === "competition" &&
+                        validateWalletBalance(
+                          Number(balanceQuery.data.value),
+                          true
+                        ) && (
+                          <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-semibold border border-emerald-500/30">
+                            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                            Sufficient for Competition Mode
+                          </div>
+                        )}
+                      {playMode === "competition" &&
+                        !validateWalletBalance(
+                          Number(balanceQuery.data.value),
+                          true
+                        ) && (
+                          <div className="inline-flex items-center gap-2 bg-red-500/20 text-red-400 px-4 py-2 rounded-full text-sm font-semibold border border-red-500/30">
+                            <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                            Insufficient for Competition Mode (Need 0.5+ GOR)
+                          </div>
+                        )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -495,7 +509,11 @@ export default function HomePage() {
                   <Select
                     value={playMode}
                     onValueChange={(value) => {
-                      const newMode = value as "auto" | "bots" | "multiplayer";
+                      const newMode = value as
+                        | "auto"
+                        | "bots"
+                        | "multiplayer"
+                        | "competition";
                       setPlayMode(newMode);
 
                       // Show toast based on selected mode
@@ -963,6 +981,111 @@ export default function HomePage() {
               }}
             >
               Switch to Auto Select
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Competition Mode Confirmation Dialog */}
+      <AlertDialog
+        open={showCompetitionAlert}
+        onOpenChange={setShowCompetitionAlert}
+      >
+        <AlertDialogContent className="bg-slate-900/95 border-2 border-yellow-500/30 backdrop-blur-xl rounded-xl shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-3 text-xl font-bold text-white">
+              <Trophy className="h-6 w-6 text-yellow-400" />
+              Competition Mode Entry
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300 text-base leading-relaxed">
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-4">
+                <p className="font-bold text-yellow-400 text-lg mb-2">
+                  Entry Fee: 0.5 GOR
+                </p>
+                <p className="text-slate-300 mb-2">
+                  Win the tournament to earn 1 GOR prize!
+                </p>
+              </div>
+
+              <p className="mb-3 font-medium text-white">Competition Rules:</p>
+              <ul className="list-disc list-inside space-y-2 mb-4">
+                <li className="text-slate-300">
+                  8 players (you + 7 advanced bots)
+                </li>
+                <li className="text-slate-300">3 minute timed match</li>
+                <li className="text-slate-300">All players have equal stats</li>
+                <li className="text-slate-300">
+                  Bots will attack each other and you
+                </li>
+                <li className="text-slate-300">
+                  Winner has most kills (minimum 1 to qualify)
+                </li>
+                <li className="text-slate-300">
+                  Winner takes all - 1 GOR prize
+                </li>
+              </ul>
+
+              <p className="text-slate-300 mb-2">
+                If you&apos;re eliminated, you can continue watching the
+                competition until it ends, but you won&apos;t qualify for the
+                prize.
+              </p>
+
+              <span className="text-slate-400 italic text-sm">
+                Are you ready to compete for glory and GOR?
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-700 hover:to-amber-700"
+              onClick={() => {
+                // Continue with game start process
+                const feeAmount = "0.5";
+
+                toast.info("Starting competition...", {
+                  description: `Enter competition • Paying ${feeAmount} GOR entry fee`,
+                  duration: 2000,
+                });
+
+                // Pay gas fee and start game
+                (async () => {
+                  try {
+                    setIsPayingGas(true);
+                    toast.loading("Processing payment...", {
+                      description: `Signing transaction and paying ${feeAmount} GOR fee`,
+                      id: "payment-toast",
+                    });
+
+                    await payGasFee();
+
+                    toast.success("Payment successful!", {
+                      description: "Welcome to the competition!",
+                      id: "payment-toast",
+                      duration: 2000,
+                    });
+
+                    setGameState("game");
+                  } catch (error) {
+                    console.error("Failed to pay gas fee:", error);
+                    toast.error("Payment failed", {
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Failed to pay gas fee. Please try again.",
+                      id: "payment-toast",
+                      duration: 5000,
+                    });
+                  } finally {
+                    setIsPayingGas(false);
+                  }
+                })();
+              }}
+            >
+              Start Competition
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

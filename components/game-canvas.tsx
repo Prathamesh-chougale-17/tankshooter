@@ -193,16 +193,8 @@ export function GameCanvas({
         onGameOver: handleGameOver,
         // Configure competition mode settings
         isCompetitionMode: playMode === "competition",
-        competitionConfig:
-          playMode === "competition"
-            ? {
-                playerCount: 8, // 8 players (1 human + 7 bots)
-                entryFee: 0.5, // 0.5 GOR entry fee
-                prize: 1.0, // 1.0 GOR prize
-                minKillsRequired: 1, // Minimum 1 kill to qualify for prize
-                botDifficulty: "hard", // Hard bots for a real challenge
-              }
-            : undefined,
+        // Pass competition duration
+        competitionDuration: 180, // 3 minutes
       });
 
       gameEngineRef.current = gameEngine;
@@ -952,6 +944,23 @@ export function GameCanvas({
           onBackToMenu={onBackToMenu}
           open={isGameOver}
         />
+      )}
+
+      {/* Spectator mode notification for eliminated players in competition */}
+      {isGameOver && isCompetitionMode && !gameOverData?.timeUp && (
+        <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 pointer-events-none">
+          <Card className="bg-purple-900/70 border-2 border-purple-500/50 backdrop-blur-md px-6 py-3 animate-pulse">
+            <div className="text-white text-center">
+              <h3 className="text-xl font-bold text-purple-300 mb-1">
+                Spectator Mode
+              </h3>
+              <p className="text-sm">
+                You have been eliminated but can continue watching the
+                competition
+              </p>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Entry fee indicator for competition mode */}

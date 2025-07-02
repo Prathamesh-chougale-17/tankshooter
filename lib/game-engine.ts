@@ -276,9 +276,20 @@ class AIBot {
     let closestPlayer: Tank | null = null;
     let closestDistance = this.bot.aggroRange;
 
-    // Find closest human player
+    // Determine if this is a competition mode bot by checking the id and competitionMode flag
+    // We need a workaround since GameState doesn't have isCompetitionMode
+    // Check if the bot ID follows the competition bot naming pattern instead
+    const isCompetitionBot =
+      this.bot.id.startsWith("bot_") && this.bot.difficulty === "hard";
+
+    // Find closest target (human player or other bots in competition mode)
     for (const tank of this.gameState.tanks.values()) {
-      if (tank.id === this.bot.id || tank.id.startsWith("bot_")) continue;
+      // Skip self
+      if (tank.id === this.bot.id) continue;
+
+      // In competition mode, bots can target other bots too
+      // In regular mode, bots only target human players
+      if (!isCompetitionBot && tank.id.startsWith("bot_")) continue;
 
       const distance = this.getDistance(this.bot.position, tank.position);
       if (distance < closestDistance) {
@@ -674,8 +685,14 @@ export class GameEngine {
   private triggerGameOver(killedBy?: string) {
     if (this.isGameOver) return; // Prevent multiple game over triggers
 
+    // In competition mode, player can spectate after death
+    // Game engine continues running, but player controls are disabled
+    const isPlayerDeath =
+      this.isCompetitionMode && !killedBy?.includes("TIME'S UP");
+
     this.isGameOver = true;
-    this.isRunning = false;
+    // Only stop the game if not in competition mode or if it's a time-up event
+    this.isRunning = isPlayerDeath ? true : false;
 
     const player = this.gameState.tanks.get(this.playerId);
     const survivalTime = Date.now() - this.gameStartTime;
@@ -738,13 +755,24 @@ export class GameEngine {
     this.keys.clear();
     this.autoFire = false;
 
-    // Stop all bots
-    this.bots.clear();
+    // For competition mode & player death: don't stop bots or animation frame
+    // This allows spectating to continue
+    if (!isPlayerDeath) {
+      // Stop all bots
+      this.bots.clear();
 
-    // Cancel animation frame
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
+      // Cancel animation frame
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
+      }
+    } else {
+      console.log(
+        "Player eliminated but game continues - spectating mode activated"
+      );
+
+      // Remove the player's tank from the game state to prevent them from playing
+      this.gameState.tanks.delete(this.playerId);
     }
 
     // Trigger game over callback
@@ -1657,7 +1685,7 @@ export class GameEngine {
     ];
 
     // Get a random name but ensure no duplicates by checking existing tanks
-    let botName;
+    let botName: string = "";
     do {
       botName = botNames[Math.floor(Math.random() * botNames.length)];
     } while (
