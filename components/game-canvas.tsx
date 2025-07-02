@@ -39,7 +39,7 @@ interface GameCanvasProps {
   playerName: string;
   tankClass: string;
   gameMode: string;
-  playMode: "multiplayer" | "bots";
+  playMode: "multiplayer" | "bots" | "competition";
   onBackToMenu: () => void;
 }
 
@@ -52,6 +52,11 @@ interface GameOverData {
   killedBy?: string;
   winner?: string;
   timeUp?: boolean;
+  // Competition mode fields
+  isCompetitionMode?: boolean;
+  prizeAmount?: number;
+  entryFee?: number;
+  playerQualified?: boolean;
 }
 
 export function GameCanvas({
@@ -76,6 +81,17 @@ export function GameCanvas({
   });
   const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
   const [timerActive, setTimerActive] = useState(false);
+
+  // Competition mode state (only used when playMode === "competition")
+  const isCompetitionMode = playMode === "competition";
+  const competitionConfig = {
+    entryFee: 0.5, // 0.5 GOR entry fee
+    prize: 1.0, // 1.0 GOR prize
+    playerCount: 8, // 8 players (1 human + 7 bots)
+    minKillsForPrize: 1, // Minimum 1 kill required to qualify
+    hasEnteredCompetition: true, // We auto-enter players into the competition
+  };
+
   const [leaderboardData, setLeaderboardData] = useState<
     | {
         tanks: Map<string, Tank>;
@@ -175,6 +191,18 @@ export function GameCanvas({
           setGameStats(stats);
         },
         onGameOver: handleGameOver,
+        // Configure competition mode settings
+        isCompetitionMode: playMode === "competition",
+        competitionConfig:
+          playMode === "competition"
+            ? {
+                playerCount: 8, // 8 players (1 human + 7 bots)
+                entryFee: 0.5, // 0.5 GOR entry fee
+                prize: 1.0, // 1.0 GOR prize
+                minKillsRequired: 1, // Minimum 1 kill to qualify for prize
+                botDifficulty: "hard", // Hard bots for a real challenge
+              }
+            : undefined,
       });
 
       gameEngineRef.current = gameEngine;
@@ -488,21 +516,45 @@ export function GameCanvas({
           leaderboardData: currentLeaderboard,
         } = gameDataRef.current;
 
-        // Find the winner (highest score) from leaderboard
         let currentWinner = currentPlayerName;
+        let highestKills = 0;
         let highestScore = 0;
+        let playerQualified = false;
 
         if (currentLeaderboard?.tanks) {
-          Object.values(currentLeaderboard.tanks).forEach((tank) => {
-            if (tank.score > highestScore) {
-              highestScore = tank.score;
-              currentWinner = tank.name;
-            }
-          });
+          // For competition mode, we determine winner based on kills
+          if (isCompetitionMode) {
+            Object.values(currentLeaderboard.tanks).forEach((tank) => {
+              if (
+                tank.kills > highestKills ||
+                (tank.kills === highestKills && tank.score > highestScore)
+              ) {
+                highestKills = tank.kills;
+                highestScore = tank.score;
+                currentWinner = tank.name;
+              }
+
+              // Check if player qualified (got at least minimum kills)
+              if (
+                tank.id === currentLeaderboard.playerId &&
+                tank.kills >= competitionConfig.minKillsForPrize
+              ) {
+                playerQualified = true;
+              }
+            });
+          } else {
+            // Regular mode: winner determined by score
+            Object.values(currentLeaderboard.tanks).forEach((tank) => {
+              if (tank.score > highestScore) {
+                highestScore = tank.score;
+                currentWinner = tank.name;
+              }
+            });
+          }
         }
 
-        // Game over with time up
-        handleGameOver({
+        // Game over data
+        const gameOverObj = {
           finalScore: currentStats.score,
           finalLevel: currentStats.level,
           totalKills: currentStats.kills,
@@ -510,7 +562,30 @@ export function GameCanvas({
           cause: "Time's up! The match has ended.",
           timeUp: true,
           winner: currentWinner,
-        });
+        };
+
+        // Add competition specific data if in competition mode
+        if (isCompetitionMode) {
+          const isWinner = currentWinner === currentPlayerName;
+          const hasQualified = playerQualified && isWinner;
+
+          Object.assign(gameOverObj, {
+            isCompetitionMode: true,
+            prizeAmount: hasQualified ? competitionConfig.prize : 0,
+            entryFee: competitionConfig.entryFee,
+            playerQualified: playerQualified,
+            cause:
+              `Time's up! ${currentWinner} won the competition with ${highestKills} kills!` +
+              (hasQualified
+                ? " You won the prize!"
+                : playerQualified
+                ? " You had enough kills but didn't win."
+                : " You didn't get enough kills to qualify."),
+          });
+        }
+
+        // Game over with time up
+        handleGameOver(gameOverObj);
         return;
       }
 
@@ -528,9 +603,17 @@ export function GameCanvas({
         console.log("Timer animation frame canceled");
       }
     };
-    // Only depend on isGameOver and timerActive - these are the only dependencies
-    // that should restart the timer
-  }, [isGameOver, timerActive, handleGameOver]);
+    // Dependencies for the timer
+  }, [
+    isGameOver,
+    timerActive,
+    handleGameOver,
+    // Competition mode dependencies
+    isCompetitionMode,
+    competitionConfig.entryFee,
+    competitionConfig.prize,
+    competitionConfig.minKillsForPrize,
+  ]);
 
   // This effect was redundant - timer now starts in the initializeGame effect
 
@@ -751,8 +834,19 @@ export function GameCanvas({
               : "Offline Mode"}
           </div>
           <div className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-            {playMode === "multiplayer" ? "🌐 Multiplayer" : "🤖 Bot Arena"}
+            {playMode === "multiplayer"
+              ? "🌐 Multiplayer"
+              : playMode === "competition"
+              ? "🏆 Competition"
+              : "🤖 Bot Arena"}
           </div>
+          {/* Show player info */}
+          {isCompetitionMode && (
+            <div className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+              💰 Entry: {competitionConfig.entryFee} GOR • Prize:{" "}
+              {competitionConfig.prize} GOR
+            </div>
+          )}
           {/* Show real player count in multiplayer mode */}
           {playMode === "multiplayer" && leaderboardData && (
             <div className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
@@ -765,7 +859,10 @@ export function GameCanvas({
       {/* Side Panels - Moved to left side to avoid overlap with multiplayer badges */}
       {!isGameOver && showLeaderboard && (
         <div className="absolute top-20 left-4 pointer-events-auto">
-          <Leaderboard gameData={leaderboardData} />
+          <Leaderboard
+            gameData={leaderboardData}
+            isCompetitionMode={isCompetitionMode}
+          />
         </div>
       )}
 
@@ -835,7 +932,13 @@ export function GameCanvas({
           <Card className="bg-black/50 border-white/20 px-3 py-2">
             <div className="text-white text-xs flex items-center gap-2">
               <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-              <span>Bots Active: Continuous Spawning</span>
+              {isCompetitionMode ? (
+                <span className="text-yellow-300">
+                  Competition Mode: 7 Hard Bots
+                </span>
+              ) : (
+                <span>Bots Active: Continuous Spawning</span>
+              )}
             </div>
           </Card>
         </div>
@@ -849,6 +952,18 @@ export function GameCanvas({
           onBackToMenu={onBackToMenu}
           open={isGameOver}
         />
+      )}
+
+      {/* Entry fee indicator for competition mode */}
+      {!isGameOver && isCompetitionMode && (
+        <div className="absolute top-28 right-4 pointer-events-none">
+          <Card className="bg-yellow-900/20 border-yellow-500/30 px-3 py-2">
+            <div className="text-yellow-300 text-xs flex items-center gap-2">
+              <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+              <span>Entry Fee Paid: {competitionConfig.entryFee} GOR</span>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

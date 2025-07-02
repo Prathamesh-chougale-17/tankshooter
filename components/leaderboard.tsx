@@ -27,13 +27,24 @@ interface LeaderboardProps {
     tanks: Map<string, Tank>;
     playerId: string;
   };
+  isCompetitionMode?: boolean; // Added this prop
 }
 
-export function Leaderboard({ gameData }: LeaderboardProps) {
+export function Leaderboard({
+  gameData,
+  isCompetitionMode = false,
+}: LeaderboardProps) {
   // Generate leaderboard from real game data if available
   const leaderboardData: LeaderboardEntry[] = gameData
     ? Array.from(gameData.tanks.values())
-        .sort((a, b) => b.score - a.score)
+        // Sort by kills for competition mode, otherwise by score
+        .sort((a, b) => {
+          if (isCompetitionMode) {
+            // Sort by kills first, then by score as a tiebreaker
+            return b.kills !== a.kills ? b.kills - a.kills : b.score - a.score;
+          }
+          return b.score - a.score;
+        })
         .slice(0, 10)
         .map((tank, index) => ({
           rank: index + 1,
@@ -91,7 +102,7 @@ export function Leaderboard({ gameData }: LeaderboardProps) {
       <CardHeader className="pb-3">
         <CardTitle className="text-white text-sm flex items-center gap-2">
           <Trophy className="h-4 w-4 text-yellow-400" />
-          Leaderboard
+          {isCompetitionMode ? "Competition" : "Leaderboard"}
         </CardTitle>
       </CardHeader>
 
@@ -125,14 +136,30 @@ export function Leaderboard({ gameData }: LeaderboardProps) {
                   {player.isBot && <Bot className="h-3 w-3 text-orange-400" />}
                 </div>
                 <div className="text-xs text-gray-400">
-                  Level {player.level} • {player.kills} kills
+                  {isCompetitionMode ? (
+                    <span
+                      className={
+                        player.kills > 0 ? "text-yellow-400" : "text-gray-400"
+                      }
+                    >
+                      {player.kills} {player.kills === 1 ? "kill" : "kills"}
+                    </span>
+                  ) : (
+                    <>
+                      Level {player.level} • {player.kills} kills
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
             <Badge
               variant="secondary"
-              className="bg-gray-700 text-white text-xs"
+              className={`${
+                isCompetitionMode && player.kills > 0
+                  ? "bg-yellow-900/50 text-yellow-300"
+                  : "bg-gray-700 text-white"
+              } text-xs`}
             >
               {player.score.toLocaleString()}
             </Badge>

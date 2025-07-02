@@ -30,6 +30,10 @@ export interface GasPaymentResult {
 
 export const GAS_FEE_AMOUNT = 0.001; // GOR
 export const GAS_FEE_LAMPORTS = Math.floor(GAS_FEE_AMOUNT * 1_000_000_000); // 0.001 GOR in lamports
+export const COMPETITION_FEE_AMOUNT = 0.5; // GOR
+export const COMPETITION_FEE_LAMPORTS = Math.floor(
+  COMPETITION_FEE_AMOUNT * 1_000_000_000
+); // 0.5 GOR in lamports
 export const GORBAGANA_RPC = "https://rpc.gorbagana.wtf";
 
 // Game treasury address - the address you specified
@@ -38,7 +42,8 @@ export const GAME_TREASURY_ADDRESS =
 
 export async function payGameGasFee(
   walletAddress: string,
-  txSigner: TransactionSendingSigner | null
+  txSigner: TransactionSendingSigner | null,
+  isCompetitionMode: boolean = false
 ): Promise<GasPaymentResult> {
   try {
     if (!txSigner) {
@@ -47,8 +52,20 @@ export async function payGameGasFee(
       );
     }
 
+    // Determine the fee amount based on the game mode
+    const feeAmount = isCompetitionMode
+      ? COMPETITION_FEE_AMOUNT
+      : GAS_FEE_AMOUNT;
+    const feeLamports = isCompetitionMode
+      ? COMPETITION_FEE_LAMPORTS
+      : GAS_FEE_LAMPORTS;
+
     console.log("🎮 Starting gas payment for Tank Shooter...");
-    console.log("💰 Amount: 0.001 GOR");
+    console.log(
+      `💰 Amount: ${feeAmount} GOR${
+        isCompetitionMode ? " (Competition Mode)" : ""
+      }`
+    );
     console.log("🔗 RPC: " + GORBAGANA_RPC);
     console.log("👛 Wallet: " + walletAddress);
     console.log("🏦 Treasury: " + GAME_TREASURY_ADDRESS);
@@ -70,11 +87,11 @@ export async function payGameGasFee(
     console.log("💳 Current balance:", balance / 1_000_000_000, "GOR");
     console.log("🔍 Raw balance response:", balanceResponse);
 
-    if (balance < GAS_FEE_LAMPORTS + 5000) {
+    if (balance < feeLamports + 5000) {
       // Include buffer for transaction fees
       throw new Error(
         "Insufficient balance. Need at least " +
-          (GAS_FEE_LAMPORTS + 5000) / 1_000_000_000 +
+          (feeLamports + 5000) / 1_000_000_000 +
           " GOR"
       );
     }
@@ -83,7 +100,7 @@ export async function payGameGasFee(
     const { signature } = await createGasPaymentTransaction({
       txSigner,
       destination: toAddress,
-      amount: GAS_FEE_LAMPORTS,
+      amount: feeLamports,
       client: customClient,
     });
 
@@ -157,8 +174,15 @@ export function formatGorAmount(lamports: number): string {
   return (lamports / 1_000_000_000).toFixed(3) + " GOR";
 }
 
-export function validateWalletBalance(balance: number): boolean {
+export function validateWalletBalance(
+  balance: number,
+  isCompetitionMode: boolean = false
+): boolean {
   // Check if wallet has enough GOR (including network fees)
-  const requiredBalance = GAS_FEE_LAMPORTS + 5000; // Add some buffer for network fees
+  console.log("Validating wallet balance:", balance);
+  const feeLamports = isCompetitionMode
+    ? COMPETITION_FEE_LAMPORTS
+    : GAS_FEE_LAMPORTS;
+  const requiredBalance = feeLamports + 5000; // Add some buffer for network fees
   return balance >= requiredBalance;
 }

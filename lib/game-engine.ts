@@ -65,6 +65,9 @@ interface GameOptions {
   onGameOver: (gameOverData: GameOverData) => void;
   sendMessage?: (message: { type: string; [key: string]: unknown }) => void;
   enableBots?: boolean;
+  // Competition mode settings
+  isCompetitionMode?: boolean;
+  competitionDuration?: number; // Duration in seconds (default 180 - 3 minutes)
 }
 
 interface GameOverData {
@@ -74,6 +77,13 @@ interface GameOverData {
   survivalTime: number;
   cause: string;
   killedBy?: string;
+  // Competition mode fields
+  winner?: string;
+  timeUp?: boolean;
+  isCompetitionMode?: boolean;
+  prizeAmount?: number;
+  entryFee?: number;
+  playerQualified?: boolean;
 }
 
 interface Bot extends Tank {
@@ -397,6 +407,15 @@ export class GameEngine {
   private gameStartTime = 0;
   private animationFrameId: number | null = null;
 
+  // Competition mode properties
+  private isCompetitionMode = false;
+  private competitionDuration = 180; // 3 minutes in seconds
+  private competitionStartTime = 0;
+  private competitionKillTimes: Map<string, number> = new Map(); // Track time of first kill for each player
+  private competitionBotsSpawned = false;
+  private competitionStandardHealth = 400;
+  private competitionStandardRegenRate = 10; // Health regenerated per second
+
   // World boundaries
   private worldBounds = {
     minX: -2000,
@@ -414,6 +433,13 @@ export class GameEngine {
     this.enableBots = options.enableBots !== false; // Default to true unless explicitly disabled
     this.sendMessage = options.sendMessage || null;
     this.playerId = Math.random().toString(36).substr(2, 9);
+
+    // Initialize competition mode if enabled
+    this.isCompetitionMode = options.isCompetitionMode || false;
+    if (this.isCompetitionMode) {
+      this.competitionDuration = options.competitionDuration || 180; // Default to 3 minutes
+      this.maxBots = 7; // Fix the number of bots to 7 for competition mode
+    }
 
     this.gameState = {
       tanks: new Map(),
@@ -505,8 +531,9 @@ export class GameEngine {
       name: this.options.playerName,
       position: { x: 0, y: 0 }, // Start at center
       rotation: 0,
-      health: 1000,
-      maxHealth: 1000,
+      // Use standardized health/stats for competition mode, otherwise normal values
+      health: this.isCompetitionMode ? this.competitionStandardHealth : 1000,
+      maxHealth: this.isCompetitionMode ? this.competitionStandardHealth : 1000,
       score: 0,
       level: 1,
       kills: 0,
@@ -662,6 +689,51 @@ export class GameEngine {
       killedBy: killedBy,
     };
 
+    // Add competition-specific information if in competition mode
+    if (this.isCompetitionMode) {
+      const playerKills = player?.kills || 0;
+      const minKillsRequired = 1; // Requirement for prize qualification
+      const entryFee = 0.5; // GOR entry fee
+      const prizeAmount = 1.0; // GOR prize
+
+      // Find the highest kill count among all tanks
+      let highestKills = 0;
+      let winnerName = "";
+      let tieWinnerTime = Infinity;
+
+      // Check all tanks for highest kills
+      this.gameState.tanks.forEach((tank) => {
+        if (tank.kills > highestKills) {
+          highestKills = tank.kills;
+          winnerName = tank.name;
+          tieWinnerTime = this.competitionKillTimes.get(tank.id) || Infinity;
+        }
+        // Tiebreaker: first to reach the kill count
+        else if (tank.kills === highestKills && highestKills > 0) {
+          const tankTime = this.competitionKillTimes.get(tank.id) || Infinity;
+          if (tankTime < tieWinnerTime) {
+            winnerName = tank.name;
+            tieWinnerTime = tankTime;
+          }
+        }
+      });
+
+      const playerQualified = playerKills >= minKillsRequired;
+
+      // Add competition fields to gameOverData
+      Object.assign(gameOverData, {
+        isCompetitionMode: true,
+        winner: winnerName || "No winner",
+        timeUp: false, // This is set by the timer in game-canvas.tsx when time runs out
+        prizeAmount: prizeAmount,
+        entryFee: entryFee,
+        playerQualified: playerQualified,
+        cause: killedBy
+          ? `Destroyed by ${killedBy}! Competition ended.`
+          : "You were eliminated from the competition.",
+      });
+    }
+
     // Clear all inputs
     this.keys.clear();
     this.autoFire = false;
@@ -789,12 +861,33 @@ export class GameEngine {
     this.botSpawnTimer = Date.now();
     this.lastTime = 0; // Reset time tracking
 
+    // Competition mode initialization
+    if (this.isCompetitionMode) {
+      this.competitionStartTime = Date.now();
+      this.competitionKillTimes.clear();
+
+      // Standardize player stats for fair competition
+      const player = this.gameState.tanks.get(this.playerId);
+      if (player) {
+        player.health = this.competitionStandardHealth;
+        player.maxHealth = this.competitionStandardHealth;
+        player.score = 0;
+        player.level = 1;
+        player.kills = 0;
+      }
+
+      // Initialize competition bots
+      this.initializeCompetitionBots();
+    }
+
     // Ensure player is properly initialized and visible
     const player = this.gameState.tanks.get(this.playerId);
     if (player) {
       // Reset player position to center
       player.position = { x: 0, y: 0 };
-      player.health = player.maxHealth;
+      if (!this.isCompetitionMode) {
+        player.health = player.maxHealth;
+      }
       this.updateStats(player);
     }
 
@@ -884,8 +977,6 @@ export class GameEngine {
   }
 
   private updateCollisions() {
-    if (this.isGameOver) return;
-
     const player = this.gameState.tanks.get(this.playerId);
     if (!player) return;
 
@@ -907,6 +998,16 @@ export class GameEngine {
             // Tank destroyed
             const shooter = this.gameState.tanks.get(bullet.ownerId);
 
+            // Track kill time for competition mode
+            if (this.isCompetitionMode && shooter) {
+              if (!this.competitionKillTimes.has(shooter.id)) {
+                this.competitionKillTimes.set(
+                  shooter.id,
+                  Date.now() - this.competitionStartTime
+                );
+              }
+            }
+
             if (tankId === this.playerId) {
               // Player was killed - trigger game over
               const killerName = shooter?.name || "Unknown Enemy";
@@ -926,12 +1027,23 @@ export class GameEngine {
             if (tankId.startsWith("bot_")) {
               this.gameState.tanks.delete(tankId);
               this.bots.delete(tankId);
-              // Immediate respawn for continuous action
-              setTimeout(() => {
-                if (!this.isGameOver) {
-                  this.spawnBot(this.getDynamicDifficulty());
-                }
-              }, 1000);
+
+              // In competition mode, bots can kill each other but we keep a fixed count
+              if (this.isCompetitionMode) {
+                // Respawn with same competition settings
+                setTimeout(() => {
+                  if (!this.isGameOver) {
+                    this.spawnCompetitionBot();
+                  }
+                }, 1000);
+              } else {
+                // Normal mode respawn
+                setTimeout(() => {
+                  if (!this.isGameOver) {
+                    this.spawnBot(this.getDynamicDifficulty());
+                  }
+                }, 1000);
+              }
             }
           } else {
             // Update player stats if player was hit but not killed
@@ -950,6 +1062,30 @@ export class GameEngine {
   private spawnBotsIfNeeded() {
     if (this.isGameOver || !this.enableBots) return;
 
+    // In competition mode, we initialize all bots at the start
+    // and maintain exactly 7 bots
+    if (this.isCompetitionMode) {
+      // Initialize competition bots if not already done
+      if (!this.competitionBotsSpawned) {
+        this.initializeCompetitionBots();
+      }
+
+      // Ensure we always have exactly 7 bots
+      const currentBotCount = Array.from(this.gameState.tanks.values()).filter(
+        (tank) => tank.id.startsWith("bot_")
+      ).length;
+
+      if (currentBotCount < 7) {
+        // Spawn missing bots
+        for (let i = 0; i < 7 - currentBotCount; i++) {
+          this.spawnCompetitionBot();
+        }
+      }
+
+      return;
+    }
+
+    // Regular mode bot spawning logic
     const now = Date.now();
 
     // Continuous bot spawning
@@ -1489,5 +1625,75 @@ export class GameEngine {
 
   public get gameOver() {
     return this.isGameOver;
+  }
+
+  private initializeCompetitionBots() {
+    if (!this.isCompetitionMode || this.competitionBotsSpawned) return;
+
+    // Clear any existing bots
+    this.bots.clear();
+
+    // Spawn 7 bots with "hard" difficulty for competition
+    for (let i = 0; i < 7; i++) {
+      this.spawnCompetitionBot();
+    }
+
+    this.competitionBotsSpawned = true;
+  }
+
+  private spawnCompetitionBot() {
+    if (this.isGameOver) return;
+
+    const botId = `bot_${Math.random().toString(36).substr(2, 9)}`;
+    const botNames = [
+      "Alpha",
+      "Beta",
+      "Gamma",
+      "Delta",
+      "Epsilon",
+      "Zeta",
+      "Eta",
+      "Theta",
+    ];
+
+    // Get a random name but ensure no duplicates by checking existing tanks
+    let botName;
+    do {
+      botName = botNames[Math.floor(Math.random() * botNames.length)];
+    } while (
+      Array.from(this.gameState.tanks.values()).some(
+        (tank) => tank.name === botName
+      )
+    );
+
+    // Spread bots evenly around the map
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 500 + Math.random() * 500;
+    const spawnX = Math.cos(angle) * distance;
+    const spawnY = Math.sin(angle) * distance;
+
+    const bot: Bot = {
+      id: botId,
+      name: botName,
+      position: { x: spawnX, y: spawnY },
+      rotation: Math.random() * Math.PI * 2,
+      health: this.competitionStandardHealth, // Equal health for all
+      maxHealth: this.competitionStandardHealth,
+      score: 0,
+      level: 1,
+      kills: 0,
+      tankClass: ["basic", "twin", "sniper"][Math.floor(Math.random() * 3)],
+      color: "#FF6B6B", // Use hard bot color
+      target: null,
+      lastShot: 0,
+      moveDirection: { x: 0, y: 0 },
+      changeDirectionTime: Date.now(),
+      aggroRange: 600, // Hard bot aggro range
+      shootRange: 550, // Hard bot shoot range
+      difficulty: "hard", // All competition bots are hard
+    };
+
+    this.gameState.tanks.set(botId, bot);
+    this.bots.set(botId, new AIBot(bot, this.gameState, this.worldBounds));
   }
 }

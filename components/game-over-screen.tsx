@@ -21,6 +21,11 @@ interface GameOverData {
   killedBy?: string;
   winner?: string;
   timeUp?: boolean;
+  // Competition mode fields
+  isCompetitionMode?: boolean;
+  prizeAmount?: number;
+  entryFee?: number;
+  playerQualified?: boolean;
 }
 
 interface GameOverScreenProps {
@@ -163,6 +168,73 @@ export function GameOverScreen({
               <div className="text-gray-400 text-xs">Survived</div>
             </div>
           </div>
+
+          {/* Competition Mode Results - Only shown for competition games */}
+          {gameOverData.isCompetitionMode && (
+            <div className="border-2 border-yellow-500/30 bg-yellow-500/10 rounded-xl p-4 mt-2">
+              <h3 className="text-yellow-400 font-bold text-center text-lg mb-3 flex items-center justify-center">
+                <Trophy className="h-5 w-5 mr-2" />
+                Competition Results
+              </h3>
+
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-black/30 p-2 rounded-lg text-center">
+                  <div className="text-xs text-gray-400">Entry Fee</div>
+                  <div className="text-white font-bold">
+                    {gameOverData.entryFee} GOR
+                  </div>
+                </div>
+
+                <div className="bg-black/30 p-2 rounded-lg text-center">
+                  <div className="text-xs text-gray-400">Prize Pool</div>
+                  <div className="text-white font-bold">
+                    {gameOverData.prizeAmount || 1.0} GOR
+                  </div>
+                </div>
+              </div>
+
+              {/* Winner announcement */}
+              <div className="text-center mb-3">
+                <div className="text-sm text-gray-300">Winner</div>
+                <div className="text-xl font-bold">
+                  {gameOverData.winner === "Player"
+                    ? "YOU"
+                    : gameOverData.winner}
+                </div>
+              </div>
+
+              {/* Prize status */}
+              {gameOverData.winner === "Player" &&
+              gameOverData.playerQualified ? (
+                <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 text-center">
+                  <div className="text-green-400 font-bold mb-1">
+                    You won {gameOverData.prizeAmount} GOR!
+                  </div>
+                  <div className="text-xs text-green-300">
+                    Prize has been transferred to your wallet
+                  </div>
+                </div>
+              ) : gameOverData.playerQualified ? (
+                <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-3 text-center">
+                  <div className="text-yellow-400 font-bold">
+                    You achieved the minimum kill requirement
+                  </div>
+                  <div className="text-xs text-yellow-300">
+                    But another player won the competition
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-center">
+                  <div className="text-red-400 font-bold">
+                    You didn&apos;t qualify for the prize
+                  </div>
+                  <div className="text-xs text-red-300">
+                    Minimum 1 kill required to qualify
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">

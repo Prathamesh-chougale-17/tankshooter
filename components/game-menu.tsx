@@ -72,6 +72,12 @@ export function GameMenu({ onStartGame }: GameMenuProps) {
       name: "Domination",
       description: "Control the dominators",
     },
+    {
+      id: "competition",
+      name: "Competition Mode",
+      description: "8 players, 3 min, winner takes 1 GOR",
+      entryFee: 0.5, // GOR
+    },
   ];
 
   const startGame = async () => {

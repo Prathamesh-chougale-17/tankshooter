@@ -23,7 +23,7 @@ import {
 import { GameCanvas } from "@/components/game-canvas";
 import { AppHeader } from "@/components/app-header";
 import { useWalletUi } from "@wallet-ui/react";
-import { payGameGasFee } from "@/lib/gas-payment";
+import { payGameGasFee, validateWalletBalance } from "@/lib/gas-payment";
 import { useWalletUiSigner } from "@/components/solana/use-wallet-ui-signer";
 import { AccountBalanceCustomRpc } from "@/components/account/account-ui";
 import { address } from "gill";
@@ -45,9 +45,9 @@ export default function HomePage() {
   const [playerName, setPlayerName] = useState("");
   const [selectedTankClass, setSelectedTankClass] = useState("basic");
   const [gameMode, setGameMode] = useState("ffa");
-  const [playMode, setPlayMode] = useState<"auto" | "bots" | "multiplayer">(
-    "auto"
-  );
+  const [playMode, setPlayMode] = useState<
+    "auto" | "bots" | "multiplayer" | "competition"
+  >("auto");
   const [isPayingGas, setIsPayingGas] = useState(false);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
   const [showWalletAlert, setShowWalletAlert] = useState(false);
@@ -157,6 +157,12 @@ export default function HomePage() {
       icon: "🌐",
     },
     {
+      id: "competition",
+      name: "Competition Mode",
+      description: "8-player tournament (0.5 GOR entry, 1 GOR prize)",
+      icon: "🏆",
+    },
+    {
       id: "bots",
       name: "Bot Arena",
       description: "Practice against AI opponents",
@@ -185,6 +191,34 @@ export default function HomePage() {
       return;
     }
 
+    // Special handling for competition mode - check balance
+    if (playMode === "competition") {
+      // Validate wallet has enough balance for competition fee
+      if (
+        !balanceQuery.data?.value ||
+        !validateWalletBalance(Number(balanceQuery.data.value), true)
+      ) {
+        toast.error("Insufficient balance for Competition Mode", {
+          description: "You need at least 0.5 GOR to enter Competition Mode.",
+          duration: 4000,
+        });
+        return;
+      }
+
+      // Extra confirmation for competition mode due to higher fee
+      if (
+        !window.confirm(
+          "Competition Mode requires a 0.5 GOR entry fee.\n\n" +
+            "• 8 players (you + 7 advanced bots)\n" +
+            "• 3 minute match\n" +
+            "• Winner with most kills (minimum 1) gets 1 GOR prize\n\n" +
+            "Do you want to continue?"
+        )
+      ) {
+        return;
+      }
+    }
+
     // Show confirmation before payment
     const effectiveMode =
       playMode === "auto" ? (isConnected ? "multiplayer" : "bots") : playMode;
@@ -194,18 +228,26 @@ export default function HomePage() {
         ? "Enter multiplayer battle"
         : effectiveMode === "bots"
         ? "Start training with bots"
+        : effectiveMode === "competition"
+        ? "Enter competition"
         : "Begin mission";
 
+    // Use the correct fee amount depending on the mode
+    const feeAmount = effectiveMode === "competition" ? "0.5" : "0.001";
+
     toast.info("Starting game...", {
-      description: `${modeText} • Paying 0.001 GOR entry fee`,
+      description: `${modeText} • Paying ${feeAmount} GOR entry fee${
+        effectiveMode === "competition" ? " (Competition Mode)" : ""
+      }`,
       duration: 2000,
     });
 
     // Pay gas fee before starting the game
     try {
       setIsPayingGas(true);
+      const feeAmount = playMode === "competition" ? "0.5" : "0.001";
       toast.loading("Processing payment...", {
-        description: "Signing transaction and paying gas fee",
+        description: `Signing transaction and paying ${feeAmount} GOR fee`,
         id: "payment-toast",
       });
 
@@ -244,7 +286,13 @@ export default function HomePage() {
       );
     }
 
-    const result = await payGameGasFee(account.address, txSigner);
+    // Pass the competition mode flag to use the correct fee amount
+    const isCompetitionMode = playMode === "competition";
+    const result = await payGameGasFee(
+      account.address,
+      txSigner,
+      isCompetitionMode
+    );
 
     if (!result.success) {
       throw new Error(result.error || "Failed to pay gas fee");
@@ -258,6 +306,8 @@ export default function HomePage() {
   };
 
   if (gameState === "game") {
+    // For auto mode, select multiplayer or bots based on connection
+    // For competition mode, we'll handle it specially in the GameCanvas
     const effectivePlayMode =
       playMode === "auto" ? (isConnected ? "multiplayer" : "bots") : playMode;
 
@@ -375,7 +425,9 @@ export default function HomePage() {
                 <div className="text-center mt-4">
                   <p className="text-sm text-slate-300 mb-2">
                     ⚡ Entry Fee:{" "}
-                    <span className="font-bold text-yellow-400">0.001 GOR</span>
+                    <span className="font-bold text-yellow-400">
+                      {playMode === "competition" ? "0.5 GOR" : "0.001 GOR"}
+                    </span>
                   </p>
                   {balanceQuery.data?.value &&
                     Number(balanceQuery.data.value) >= 1000000 && (
@@ -689,6 +741,8 @@ export default function HomePage() {
                                 return "DEPLOY TO BATTLE • 0.001 GOR";
                               case "bots":
                                 return "ENTER TRAINING • 0.001 GOR";
+                              case "competition":
+                                return "ENTER COMPETITION • 0.5 GOR";
                               default:
                                 return "START MISSION • 0.001 GOR";
                             }
@@ -704,7 +758,9 @@ export default function HomePage() {
                     Backpack wallet
                   </span>{" "}
                   and pay{" "}
-                  <span className="font-bold text-yellow-400">0.001 $GOR</span>{" "}
+                  <span className="font-bold text-yellow-400">
+                    {playMode === "competition" ? "0.5" : "0.001"} $GOR
+                  </span>{" "}
                   to enter the battlefield on{" "}
                   <span className="font-bold text-cyan-400">
                     Gorbagana testnet
@@ -841,8 +897,10 @@ export default function HomePage() {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300 text-base leading-relaxed">
               You need to connect your Backpack wallet to pay the{" "}
-              <span className="font-bold text-yellow-400">0.001 GOR</span> entry
-              fee and join the battle on Gorbagana testnet.
+              <span className="font-bold text-yellow-400">
+                {playMode === "competition" ? "0.5 GOR" : "0.001 GOR"}
+              </span>{" "}
+              entry fee and join the battle on Gorbagana testnet.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
