@@ -95,7 +95,7 @@ export function GameOverScreen({
             GAME OVER
           </DialogTitle>
           <DialogDescription className="text-gray-300">
-            {gameOverData.cause}
+            {/* {gameOverData.cause} */}
             {gameOverData.killedBy && (
               <span className="text-red-300 text-sm mt-1">
                 Destroyed by: <strong>{gameOverData.killedBy}</strong>

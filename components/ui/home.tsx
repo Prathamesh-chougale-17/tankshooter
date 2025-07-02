@@ -10,6 +10,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { GameCanvas } from "@/components/game-canvas";
 import { AppHeader } from "@/components/app-header";
 import { useWalletUi } from "@wallet-ui/react";
@@ -17,8 +27,16 @@ import { payGameGasFee } from "@/lib/gas-payment";
 import { useWalletUiSigner } from "@/components/solana/use-wallet-ui-signer";
 import { AccountBalanceCustomRpc } from "@/components/account/account-ui";
 import { address } from "gill";
-import { Gamepad2, Users, Trophy, Settings } from "lucide-react";
+import {
+  Gamepad2,
+  Users,
+  Trophy,
+  Settings,
+  AlertTriangle,
+  Wallet,
+} from "lucide-react";
 import { useGetBalanceFromCustomRpcQuery } from "@/components/account/account-data-access";
+import { toast } from "sonner";
 
 import { useWebSocket } from "@/hooks/use-websocket";
 
@@ -31,6 +49,8 @@ export default function HomePage() {
     "auto"
   );
   const [isPayingGas, setIsPayingGas] = useState(false);
+  const [showOfflineAlert, setShowOfflineAlert] = useState(false);
+  const [showWalletAlert, setShowWalletAlert] = useState(false);
 
   const { account } = useWalletUi();
   const txSigner = useWalletUiSigner();
@@ -42,6 +62,26 @@ export default function HomePage() {
     activeGames: 0,
     servers: 1,
   });
+
+  const [hasShownConnectionToast, setHasShownConnectionToast] = useState(false);
+
+  // Show connection status toasts
+  useEffect(() => {
+    if (!hasShownConnectionToast) {
+      if (isConnected) {
+        toast.success("Server connected", {
+          description: "Multiplayer mode is now available!",
+          duration: 3000,
+        });
+      } else {
+        toast.info("Running in offline mode", {
+          description: "Connect to enable multiplayer battles",
+          duration: 3000,
+        });
+      }
+      setHasShownConnectionToast(true);
+    }
+  }, [isConnected, hasShownConnectionToast]);
 
   useEffect(() => {
     if (lastMessage && lastMessage.type === "serverStats") {
@@ -57,6 +97,10 @@ export default function HomePage() {
   useEffect(() => {
     if (playMode === "multiplayer" && !isConnected) {
       setPlayMode("auto");
+      toast.warning("Switched to Auto Select", {
+        description: "Server connection lost. Switched to offline mode.",
+        duration: 4000,
+      });
     }
   }, [isConnected, playMode]);
 
@@ -122,30 +166,68 @@ export default function HomePage() {
 
   const startGame = async () => {
     if (!playerName.trim()) {
+      toast.error("Player name required", {
+        description:
+          "Please enter your tank commander name before starting the battle.",
+        duration: 3000,
+      });
       return;
     }
 
     if (!account?.address) {
-      alert("Please connect your wallet first!");
+      setShowWalletAlert(true);
       return;
     }
 
     // Check if multiplayer is selected but server is offline
     if (playMode === "multiplayer" && !isConnected) {
-      alert(
-        "Multiplayer mode requires server connection. Please select 'Auto Select' or 'Bot Arena' for offline play."
-      );
+      setShowOfflineAlert(true);
       return;
     }
+
+    // Show confirmation before payment
+    const effectiveMode =
+      playMode === "auto" ? (isConnected ? "multiplayer" : "bots") : playMode;
+
+    const modeText =
+      effectiveMode === "multiplayer"
+        ? "Enter multiplayer battle"
+        : effectiveMode === "bots"
+        ? "Start training with bots"
+        : "Begin mission";
+
+    toast.info("Starting game...", {
+      description: `${modeText} • Paying 0.001 GOR entry fee`,
+      duration: 2000,
+    });
 
     // Pay gas fee before starting the game
     try {
       setIsPayingGas(true);
+      toast.loading("Processing payment...", {
+        description: "Signing transaction and paying gas fee",
+        id: "payment-toast",
+      });
+
       await payGasFee();
+
+      toast.success("Payment successful!", {
+        description: "Welcome to the battlefield, commander!",
+        id: "payment-toast",
+        duration: 2000,
+      });
+
       setGameState("game");
     } catch (error) {
       console.error("Failed to pay gas fee:", error);
-      alert("Failed to pay gas fee. Please try again.");
+      toast.error("Payment failed", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to pay gas fee. Please try again.",
+        id: "payment-toast",
+        duration: 5000,
+      });
     } finally {
       setIsPayingGas(false);
     }
@@ -191,244 +273,409 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-indigo-950 flex flex-col relative overflow-hidden">
       {/* Add header with wallet connection */}
       <AppHeader links={[]} />
 
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center p-4 relative">
         {/* Enhanced animated background */}
         <div className="absolute inset-0 overflow-hidden">
-          {/* Floating particles */}
-          <div className="absolute top-20 left-20 w-3 h-3 bg-yellow-400/60 rounded-full animate-pulse shadow-lg shadow-yellow-400/30"></div>
-          <div className="absolute top-40 right-32 w-4 h-4 bg-blue-400/60 rounded-full animate-bounce shadow-lg shadow-blue-400/30"></div>
-          <div className="absolute bottom-32 left-40 w-2 h-2 bg-green-400/60 rounded-full animate-ping shadow-lg shadow-green-400/30"></div>
-          <div className="absolute bottom-20 right-20 w-3 h-3 bg-red-400/60 rounded-full animate-pulse shadow-lg shadow-red-400/30"></div>
-          <div className="absolute top-1/3 left-1/4 w-2 h-2 bg-purple-400/40 rounded-full animate-bounce delay-300"></div>
-          <div className="absolute top-2/3 right-1/4 w-3 h-3 bg-cyan-400/40 rounded-full animate-ping delay-500"></div>
+          {/* Animated tank silhouettes */}
+          <div className="absolute top-20 left-10 w-16 h-16 opacity-10 animate-pulse">
+            <div className="w-full h-full bg-gradient-to-r from-purple-400 to-blue-400 rounded-full relative">
+              <div className="absolute top-1/2 right-0 w-6 h-2 bg-gradient-to-r from-purple-400 to-blue-400 transform -translate-y-1/2"></div>
+            </div>
+          </div>
+          <div className="absolute bottom-32 right-16 w-12 h-12 opacity-10 animate-bounce">
+            <div className="w-full h-full bg-gradient-to-r from-green-400 to-yellow-400 rounded-full relative">
+              <div className="absolute top-1/2 left-0 w-4 h-1 bg-gradient-to-r from-green-400 to-yellow-400 transform -translate-y-1/2"></div>
+            </div>
+          </div>
 
-          {/* Grid overlay */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGRlZnM+CjxwYXR0ZXJuIGlkPSJncmlkIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgo8cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMDMpIiBzdHJva2Utd2lkdGg9IjEiLz4KPC9wYXR0ZXJuPgo8L2RlZnM+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0idXJsKCNncmlkKSIgLz4KPHN2Zz4K')] opacity-30"></div>
+          {/* Floating particles with glow */}
+          <div className="absolute top-1/4 left-1/3 w-2 h-2 bg-cyan-400 rounded-full animate-bounce shadow-lg shadow-cyan-400/50"></div>
+          <div
+            className="absolute top-2/3 right-1/4 w-3 h-3 bg-purple-400 rounded-full animate-bounce shadow-lg shadow-purple-400/50"
+            style={{ animationDelay: "0.5s" }}
+          ></div>
+          <div className="absolute bottom-1/4 left-1/4 w-1 h-1 bg-yellow-400 rounded-full animate-pulse shadow-lg shadow-yellow-400/50"></div>
+          <div className="absolute top-1/2 right-1/3 w-2 h-2 bg-pink-400 rounded-full animate-ping shadow-lg shadow-pink-400/50"></div>
 
-          {/* Gradient orbs */}
-          <div className="absolute top-10 right-10 w-32 h-32 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full blur-xl animate-pulse"></div>
-          <div className="absolute bottom-10 left-10 w-24 h-24 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-xl animate-pulse delay-700"></div>
+          {/* Subtle grid pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.03)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+
+          {/* Gradient orbs with enhanced glow */}
+          <div className="absolute top-20 right-20 w-40 h-40 bg-gradient-to-r from-purple-500/15 to-pink-500/15 rounded-full blur-2xl animate-pulse"></div>
+          <div
+            className="absolute bottom-20 left-20 w-32 h-32 bg-gradient-to-r from-blue-500/15 to-cyan-500/15 rounded-full blur-2xl animate-pulse"
+            style={{ animationDelay: "1s" }}
+          ></div>
+          <div
+            className="absolute top-1/2 left-1/2 w-60 h-60 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "0.5s" }}
+          ></div>
         </div>
 
-        <Card className="w-full max-w-2xl bg-black/30 backdrop-blur-xl border-purple-500/30 shadow-2xl shadow-purple-500/10 relative overflow-hidden group animate-slide-up">
-          {/* Card glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <Card className="w-full max-w-4xl bg-black/20 backdrop-blur-2xl border border-purple-500/20 shadow-2xl shadow-purple-500/10 relative overflow-hidden group">
+          {/* Enhanced card glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
-          <CardHeader className="text-center relative z-10">
-            <CardTitle className="text-6xl font-bold mb-4 tracking-wider bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent animate-glow">
-              Tank{" "}
-              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Shooter
-              </span>
-              {/* Connection status indicator */}
-              <div
-                className={`inline-block ml-4 w-3 h-3 rounded-full ${
-                  isConnected ? "bg-green-400 animate-pulse" : "bg-gray-400"
-                }`}
-                title={isConnected ? "Multiplayer Online" : "Offline Mode"}
-              ></div>
-            </CardTitle>
-            <p className="text-gray-300 text-lg font-medium animate-fade-in">
-              {isConnected
-                ? "Multiplayer Tank Battle Arena"
-                : "Single Player Tank Battle Arena"}
-            </p>
+          <CardHeader className="text-center relative z-10 pb-8">
+            <div className="relative">
+              <CardTitle className="text-7xl font-black mb-6 tracking-wider relative">
+                <span className="bg-gradient-to-r from-white via-purple-200 to-cyan-200 bg-clip-text text-transparent drop-shadow-2xl">
+                  Tank
+                </span>
+                <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent ml-4 drop-shadow-2xl">
+                  Shooter
+                </span>
+                {/* Enhanced connection status indicator */}
+                <div className="absolute -top-3 -right-16 flex items-center gap-2">
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 ${
+                      isConnected
+                        ? "bg-emerald-400 border-emerald-300 shadow-lg shadow-emerald-400/50 animate-pulse"
+                        : "bg-slate-400 border-slate-300 shadow-lg shadow-slate-400/30"
+                    }`}
+                  ></div>
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wider ${
+                      isConnected ? "text-emerald-400" : "text-slate-400"
+                    }`}
+                  >
+                    {isConnected ? "ONLINE" : "OFFLINE"}
+                  </span>
+                </div>
+              </CardTitle>
+
+              <div className="relative">
+                <p className="text-xl font-semibold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent mb-2">
+                  {isConnected
+                    ? "🌐 Multiplayer Tank Battle Arena"
+                    : "🤖 Single Player Tank Battle Arena"}
+                </p>
+                <p className="text-sm text-slate-400 font-medium">
+                  Built on{" "}
+                  <span className="text-purple-400 font-bold">
+                    Gorbagana Testnet
+                  </span>{" "}
+                  • Powered by{" "}
+                  <span className="text-cyan-400 font-bold">$GOR</span>
+                </p>
+              </div>
+            </div>
           </CardHeader>
 
-          <CardContent className="space-y-8 relative z-10">
+          <CardContent className="space-y-10 relative z-10 px-8 pb-8">
             {/* Wallet Balance Display */}
             {account?.address && (
-              <div
-                className="space-y-3 group animate-fade-in"
-                style={{ animationDelay: "0.1s", animationFillMode: "both" }}
-              >
+              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-2xl p-6 border border-purple-500/20 backdrop-blur-sm">
                 <AccountBalanceCustomRpc address={address(account.address)} />
-                <p className="text-center text-gray-400 text-xs">
-                  ⚡ Game requires 0.001 GOR to play
+                <div className="text-center mt-4">
+                  <p className="text-sm text-slate-300 mb-2">
+                    ⚡ Entry Fee:{" "}
+                    <span className="font-bold text-yellow-400">0.001 GOR</span>
+                  </p>
                   {balanceQuery.data?.value &&
                     Number(balanceQuery.data.value) >= 1000000 && (
-                      <span className="text-green-400 ml-2">
-                        ✓ Sufficient balance
-                      </span>
+                      <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-semibold border border-emerald-500/30">
+                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                        Sufficient Balance
+                      </div>
                     )}
                   {balanceQuery.data?.value &&
                     Number(balanceQuery.data.value) < 1000000 && (
-                      <span className="text-yellow-400 ml-2">
-                        ⚠ Need more GOR
-                      </span>
+                      <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-400 px-4 py-2 rounded-full text-sm font-semibold border border-amber-500/30">
+                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                        Need More GOR
+                      </div>
                     )}
-                </p>
+                </div>
               </div>
             )}
-            {/* Player Name Input */}
-            <div
-              className="space-y-3 group animate-fade-in"
-              style={{ animationDelay: "0.2s", animationFillMode: "both" }}
-            >
-              <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-gradient-to-r from-yellow-400 to-orange-400"></div>
-                Player Name
-              </label>
-              <Input
-                placeholder="Enter your name..."
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="bg-white/10 border-purple-500/30 text-white placeholder:text-gray-400 h-12 text-lg backdrop-blur-sm hover:bg-white/15 focus:bg-white/20 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg"
-                maxLength={20}
-              />
-            </div>
-            {/* Play Mode Selection */}
-            <div
-              className="space-y-3 group animate-fade-in"
-              style={{ animationDelay: "0.3s", animationFillMode: "both" }}
-            >
-              <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-gradient-to-r from-cyan-400 to-purple-400"></div>
-                Play Mode
-              </label>
-              <Select
-                value={playMode}
-                onValueChange={(value) =>
-                  setPlayMode(value as "auto" | "bots" | "multiplayer")
-                }
-              >
-                <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
-                  <SelectValue placeholder="Choose play mode..." />
-                </SelectTrigger>
-                <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
-                  {playModes.map((mode) => (
-                    <SelectItem
-                      key={mode.id}
-                      value={mode.id}
-                      disabled={mode.id === "multiplayer" && !isConnected}
-                      className={`focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5 ${
-                        mode.id === "multiplayer" && !isConnected
-                          ? "opacity-50 cursor-not-allowed hover:bg-transparent"
-                          : ""
-                      }`}
-                    >
-                      <div className="py-2 px-1">
-                        <div className="font-semibold text-white flex items-center gap-2">
-                          <span className="text-lg">{mode.icon}</span>
-                          {mode.name}
-                          {mode.id === "multiplayer" && !isConnected && (
-                            <span className="text-xs text-red-400 ml-2">
-                              (Offline)
-                            </span>
-                          )}
-                          {mode.id === "multiplayer" && isConnected && (
-                            <span className="text-xs text-green-400 ml-2">
-                              (Online)
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1 ml-6">
-                          {mode.id === "multiplayer" && !isConnected
-                            ? "Server connection required"
-                            : mode.description}
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div
-              className="flex justify-between animate-fade-in"
-              style={{ animationDelay: "0.4s", animationFillMode: "both" }}
-            >
-              <div className="flex-1 space-y-3 group">
-                <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-gradient-to-r from-purple-400 to-blue-400"></div>
-                  Tank Class
+
+            {/* Player Configuration */}
+            <div className="space-y-8">
+              {/* Player Name Input - Full Width */}
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 text-white font-bold text-sm uppercase tracking-wider">
+                  <div className="w-4 h-4 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg shadow-yellow-400/30"></div>
+                  Player Name
                 </label>
-                <Select
-                  value={selectedTankClass}
-                  onValueChange={setSelectedTankClass}
-                >
-                  <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
-                    <SelectValue placeholder="Choose your tank..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
-                    {tankClasses.map((tank) => (
-                      <SelectItem
-                        key={tank.id}
-                        value={tank.id}
-                        className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5"
-                      >
-                        <div className="py-2 px-1">
-                          <div className="font-semibold text-white flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-gradient-to-r from-purple-400 to-blue-400"></div>
-                            {tank.name}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-1 ml-4">
-                            {tank.description}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  placeholder="Enter your tank commander name..."
+                  value={playerName}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    setPlayerName(newValue);
+
+                    // Show helpful toast when user starts typing
+                    if (newValue.length === 1) {
+                      toast.info("Great start, commander!", {
+                        description:
+                          "Choose a name that strikes fear into your enemies",
+                        duration: 2000,
+                      });
+                    }
+
+                    // Warn when approaching character limit
+                    if (newValue.length === 18) {
+                      toast.warning("Character limit approaching", {
+                        description: "Maximum 20 characters allowed",
+                        duration: 2000,
+                      });
+                    }
+                  }}
+                  className="bg-slate-800/50 border-2 border-slate-600/50 text-white placeholder:text-slate-400 h-14 text-lg backdrop-blur-sm hover:bg-slate-800/70 focus:bg-slate-800/80 focus:border-purple-400/70 transition-all duration-300 rounded-xl shadow-lg focus:shadow-purple-400/20"
+                  maxLength={20}
+                />
               </div>
 
-              <div className="flex-1 space-y-3 group">
-                <label className="text-white font-medium text-xs uppercase tracking-wide flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-gradient-to-r from-green-400 to-blue-400"></div>
-                  Game Mode
-                </label>
-                <Select value={gameMode} onValueChange={setGameMode}>
-                  <SelectTrigger className="bg-white/10 border-purple-500/30 text-white h-12 backdrop-blur-sm hover:bg-white/15 transition-all duration-300 group-hover:border-purple-400/50 focus:ring-2 focus:ring-purple-400/50 rounded-lg">
-                    <SelectValue placeholder="Select game mode..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-black/90 border-purple-500/30 backdrop-blur-xl rounded-lg shadow-xl shadow-purple-500/20">
-                    {gameModes.map((mode) => (
-                      <SelectItem
-                        key={mode.id}
-                        value={mode.id}
-                        className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-colors duration-200 rounded-md mx-1 my-0.5"
-                      >
-                        <div className="py-2 px-1">
-                          <div className="font-semibold text-white flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-gradient-to-r from-green-400 to-blue-400"></div>
-                            {mode.name}
+              {/* Battle Configuration - Single Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Battle Mode Selection */}
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 text-white font-bold text-sm uppercase tracking-wider">
+                    <div className="w-4 h-4 rounded-lg bg-gradient-to-br from-cyan-400 to-purple-500 shadow-lg shadow-cyan-400/30"></div>
+                    Battle Mode
+                  </label>{" "}
+                  <Select
+                    value={playMode}
+                    onValueChange={(value) => {
+                      const newMode = value as "auto" | "bots" | "multiplayer";
+                      setPlayMode(newMode);
+
+                      // Show toast based on selected mode
+                      const modeInfo = playModes.find(
+                        (mode) => mode.id === newMode
+                      );
+                      if (modeInfo) {
+                        if (newMode === "multiplayer" && !isConnected) {
+                          toast.warning("Multiplayer unavailable", {
+                            description:
+                              "Server connection required for multiplayer battles",
+                            duration: 3000,
+                          });
+                        } else {
+                          toast.info(`${modeInfo.name} selected`, {
+                            description: modeInfo.description,
+                            duration: 2000,
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-slate-800/50 border-2 border-slate-600/50 text-white h-14 backdrop-blur-sm hover:bg-slate-800/70 transition-all duration-300 focus:border-purple-400/70 rounded-xl shadow-lg focus:shadow-purple-400/20">
+                      <SelectValue placeholder="Choose your battle mode...">
+                        {playMode && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">
+                              {
+                                playModes.find((mode) => mode.id === playMode)
+                                  ?.icon
+                              }
+                            </span>
+                            <span className="font-semibold">
+                              {
+                                playModes.find((mode) => mode.id === playMode)
+                                  ?.name
+                              }
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-400 mt-1 ml-4">
-                            {mode.description}
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900/95 border-2 border-purple-500/30 backdrop-blur-xl rounded-xl shadow-2xl shadow-purple-500/20">
+                      {playModes.map((mode) => (
+                        <SelectItem
+                          key={mode.id}
+                          value={mode.id}
+                          disabled={mode.id === "multiplayer" && !isConnected}
+                          className={`focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-all duration-200 rounded-lg mx-2 my-1 p-4 ${
+                            mode.id === "multiplayer" && !isConnected
+                              ? "opacity-50 cursor-not-allowed hover:bg-transparent"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <span className="text-2xl">{mode.icon}</span>
+                            <div>
+                              <div className="font-bold text-white text-lg flex items-center gap-2">
+                                {mode.name}
+                                {mode.id === "multiplayer" && !isConnected && (
+                                  <span className="text-xs text-red-400 bg-red-500/20 px-2 py-1 rounded-full">
+                                    OFFLINE
+                                  </span>
+                                )}
+                                {mode.id === "multiplayer" && isConnected && (
+                                  <span className="text-xs text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-full">
+                                    ONLINE
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-slate-400 mt-1">
+                                {mode.id === "multiplayer" && !isConnected
+                                  ? "Server connection required"
+                                  : mode.description}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Tank Class Selection */}
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 text-white font-bold text-sm uppercase tracking-wider">
+                    <div className="w-4 h-4 rounded-lg bg-gradient-to-br from-purple-400 to-blue-500 shadow-lg shadow-purple-400/30"></div>
+                    Tank Class
+                  </label>
+                  <Select
+                    value={selectedTankClass}
+                    onValueChange={(value) => {
+                      setSelectedTankClass(value);
+
+                      // Show toast with tank class info
+                      const tankInfo = tankClasses.find(
+                        (tank) => tank.id === value
+                      );
+                      if (tankInfo) {
+                        toast.info(`${tankInfo.name} selected`, {
+                          description: tankInfo.description,
+                          duration: 2000,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-slate-800/50 border-2 border-slate-600/50 text-white h-14 backdrop-blur-sm hover:bg-slate-800/70 transition-all duration-300 focus:border-purple-400/70 rounded-xl shadow-lg focus:shadow-purple-400/20">
+                      <SelectValue placeholder="Choose your tank...">
+                        {selectedTankClass && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-blue-400 shadow-lg shadow-purple-400/50"></div>
+                            <span className="font-semibold">
+                              {
+                                tankClasses.find(
+                                  (tank) => tank.id === selectedTankClass
+                                )?.name
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900/95 border-2 border-purple-500/30 backdrop-blur-xl rounded-xl shadow-2xl shadow-purple-500/20">
+                      {tankClasses.map((tank) => (
+                        <SelectItem
+                          key={tank.id}
+                          value={tank.id}
+                          className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-all duration-200 rounded-lg mx-2 my-1 p-4"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-blue-400 shadow-lg shadow-purple-400/50"></div>
+                            <div>
+                              <div className="font-bold text-white text-lg">
+                                {tank.name}
+                              </div>
+                              <div className="text-sm text-slate-400 mt-1">
+                                {tank.description}
+                              </div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Game Mode Selection */}
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 text-white font-bold text-sm uppercase tracking-wider">
+                    <div className="w-4 h-4 rounded-lg bg-gradient-to-br from-emerald-400 to-blue-500 shadow-lg shadow-emerald-400/30"></div>
+                    Game Mode
+                  </label>
+                  <Select
+                    value={gameMode}
+                    onValueChange={(value) => {
+                      setGameMode(value);
+
+                      // Show toast with game mode info
+                      const modeInfo = gameModes.find(
+                        (mode) => mode.id === value
+                      );
+                      if (modeInfo) {
+                        toast.info(`${modeInfo.name} selected`, {
+                          description: modeInfo.description,
+                          duration: 2000,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-slate-800/50 border-2 border-slate-600/50 text-white h-14 backdrop-blur-sm hover:bg-slate-800/70 transition-all duration-300 focus:border-purple-400/70 rounded-xl shadow-lg focus:shadow-purple-400/20">
+                      <SelectValue placeholder="Select game mode...">
+                        {gameMode && (
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-blue-400 shadow-lg shadow-emerald-400/50"></div>
+                            <span className="font-semibold">
+                              {
+                                gameModes.find((mode) => mode.id === gameMode)
+                                  ?.name
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900/95 border-2 border-purple-500/30 backdrop-blur-xl rounded-xl shadow-2xl shadow-purple-500/20">
+                      {gameModes.map((mode) => (
+                        <SelectItem
+                          key={mode.id}
+                          value={mode.id}
+                          className="focus:bg-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-all duration-200 rounded-lg mx-2 my-1 p-4"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-blue-400 shadow-lg shadow-emerald-400/50"></div>
+                            <div>
+                              <div className="font-bold text-white text-lg">
+                                {mode.name}
+                              </div>
+                              <div className="text-sm text-slate-400 mt-1">
+                                {mode.description}
+                              </div>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>{" "}
-            <div
-              className="animate-fade-in"
-              style={{ animationDelay: "0.6s", animationFillMode: "both" }}
-            >
+            </div>
+            {/* Start Game Button */}
+            <div className="pt-4">
               <Button
                 onClick={startGame}
                 disabled={
                   !playerName.trim() || !account?.address || isPayingGas
                 }
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-6 text-2xl rounded-2xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group relative overflow-hidden min-h-[80px]"
+                className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 text-white font-black py-8 text-2xl rounded-2xl transition-all duration-500 transform hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group relative overflow-hidden border-2 border-purple-500/50"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                 {isPayingGas ? (
-                  <>
-                    <div className="mr-4 h-8 w-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span className="relative z-10">Paying Gas Fee...</span>
-                  </>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="h-8 w-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="relative z-10 tracking-wider">
+                      PROCESSING PAYMENT...
+                    </span>
+                  </div>
                 ) : (
-                  <>
-                    <Gamepad2 className="mr-4 h-8 w-8 relative z-10" />
-                    <span className="relative z-10">
+                  <div className="flex items-center justify-center gap-4">
+                    <Gamepad2 className="h-10 w-10 relative z-10" />
+                    <span className="relative z-10 tracking-wider">
                       {!account?.address
-                        ? "Connect Wallet First"
+                        ? "CONNECT WALLET FIRST"
                         : (() => {
                             const effectiveMode =
                               playMode === "auto"
@@ -439,125 +686,143 @@ export default function HomePage() {
 
                             switch (effectiveMode) {
                               case "multiplayer":
-                                return "Start Multiplayer Game (0.001 GOR)";
+                                return "DEPLOY TO BATTLE • 0.001 GOR";
                               case "bots":
-                                return "Start Bot Arena (0.001 GOR)";
+                                return "ENTER TRAINING • 0.001 GOR";
                               default:
-                                return "Start Game (0.001 GOR)";
+                                return "START MISSION • 0.001 GOR";
                             }
                           })()}
                     </span>
-                  </>
+                  </div>
                 )}
               </Button>
               {!account?.address && (
-                <p className="text-center text-gray-400 text-sm mt-3">
-                  Connect your Backpack wallet and pay 0.001 $GOR to play on
-                  Gorbagana testnet
+                <p className="text-center text-slate-400 text-sm mt-4 bg-slate-800/30 rounded-lg p-3 border border-slate-600/30">
+                  🔗 Connect your{" "}
+                  <span className="font-bold text-purple-400">
+                    Backpack wallet
+                  </span>{" "}
+                  and pay{" "}
+                  <span className="font-bold text-yellow-400">0.001 $GOR</span>{" "}
+                  to enter the battlefield on{" "}
+                  <span className="font-bold text-cyan-400">
+                    Gorbagana testnet
+                  </span>
                 </p>
               )}
             </div>
-            <div
-              className="grid grid-cols-3 gap-6 pt-6 animate-fade-in"
-              style={{ animationDelay: "0.8s", animationFillMode: "both" }}
-            >
-              <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+
+            {/* Enhanced Server Stats */}
+            <div className="grid grid-cols-3 gap-6 pt-8">
+              <div className="text-center group cursor-pointer transform hover:scale-105 transition-all duration-300">
                 <div
-                  className={`bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                  className={`relative overflow-hidden rounded-2xl p-6 backdrop-blur-sm border transition-all duration-500 ${
                     isConnected
-                      ? "border-blue-500/30 group-hover:border-blue-400/50 group-hover:shadow-lg group-hover:shadow-blue-500/20"
-                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                      ? "bg-gradient-to-br from-blue-500/10 to-cyan-500/20 border-blue-500/30 hover:border-blue-400/60 hover:shadow-xl hover:shadow-blue-500/20"
+                      : "bg-gradient-to-br from-slate-500/10 to-slate-600/20 border-slate-500/30 hover:border-slate-400/60"
                   }`}
                 >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                   <Users
-                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                    className={`h-12 w-12 mx-auto mb-4 transition-all duration-300 ${
                       isConnected
-                        ? "text-blue-400 group-hover:text-blue-300"
-                        : "text-gray-400 group-hover:text-gray-300"
+                        ? "text-blue-400 group-hover:text-blue-300 drop-shadow-lg"
+                        : "text-slate-400 group-hover:text-slate-300"
                     }`}
                   />
-                  <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
                     Online Players
                   </div>
                   <div
-                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                    className={`text-3xl font-black mb-2 ${
                       isConnected
-                        ? "from-blue-400 to-cyan-400"
-                        : "from-gray-400 to-gray-500"
+                        ? "bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent"
+                        : "text-slate-400"
                     }`}
                   >
-                    {isConnected ? serverStats.onlinePlayers : "Offline"}
+                    {isConnected ? serverStats.onlinePlayers : "---"}
                   </div>
                   {!isConnected && (
-                    <div className="text-xs text-gray-500 mt-1">Demo Mode</div>
+                    <div className="text-xs text-slate-500 bg-slate-700/50 rounded-full px-3 py-1">
+                      OFFLINE MODE
+                    </div>
                   )}
                 </div>
               </div>
-              <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+
+              <div className="text-center group cursor-pointer transform hover:scale-105 transition-all duration-300">
                 <div
-                  className={`bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                  className={`relative overflow-hidden rounded-2xl p-6 backdrop-blur-sm border transition-all duration-500 ${
                     isConnected
-                      ? "border-yellow-500/30 group-hover:border-yellow-400/50 group-hover:shadow-lg group-hover:shadow-yellow-500/20"
-                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                      ? "bg-gradient-to-br from-yellow-500/10 to-orange-500/20 border-yellow-500/30 hover:border-yellow-400/60 hover:shadow-xl hover:shadow-yellow-500/20"
+                      : "bg-gradient-to-br from-slate-500/10 to-slate-600/20 border-slate-500/30 hover:border-slate-400/60"
                   }`}
                 >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                   <Trophy
-                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                    className={`h-12 w-12 mx-auto mb-4 transition-all duration-300 ${
                       isConnected
-                        ? "text-yellow-400 group-hover:text-yellow-300"
-                        : "text-gray-400 group-hover:text-gray-300"
+                        ? "text-yellow-400 group-hover:text-yellow-300 drop-shadow-lg"
+                        : "text-slate-400 group-hover:text-slate-300"
                     }`}
                   />
-                  <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
-                    Active Games
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                    Active Battles
                   </div>
                   <div
-                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                    className={`text-3xl font-black mb-2 ${
                       isConnected
-                        ? "from-yellow-400 to-orange-400"
-                        : "from-gray-400 to-gray-500"
+                        ? "bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent"
+                        : "text-slate-400"
                     }`}
                   >
-                    {isConnected ? serverStats.activeGames : "Local"}
+                    {isConnected ? serverStats.activeGames : "---"}
                   </div>
                   {!isConnected && (
-                    <div className="text-xs text-gray-500 mt-1">With Bots</div>
+                    <div className="text-xs text-slate-500 bg-slate-700/50 rounded-full px-3 py-1">
+                      BOT ARENA
+                    </div>
                   )}
                 </div>
               </div>
-              <div className="text-center text-white group cursor-pointer hover:transform hover:scale-105 transition-all duration-300">
+
+              <div className="text-center group cursor-pointer transform hover:scale-105 transition-all duration-300">
                 <div
-                  className={`bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-4 backdrop-blur-sm border transition-all duration-300 ${
+                  className={`relative overflow-hidden rounded-2xl p-6 backdrop-blur-sm border transition-all duration-500 ${
                     isConnected
-                      ? "border-green-500/30 group-hover:border-green-400/50 group-hover:shadow-lg group-hover:shadow-green-500/20"
-                      : "border-gray-500/30 group-hover:border-gray-400/50"
+                      ? "bg-gradient-to-br from-emerald-500/10 to-green-500/20 border-emerald-500/30 hover:border-emerald-400/60 hover:shadow-xl hover:shadow-emerald-500/20"
+                      : "bg-gradient-to-br from-slate-500/10 to-slate-600/20 border-slate-500/30 hover:border-slate-400/60"
                   }`}
                 >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-green-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                   <Settings
-                    className={`h-10 w-10 mx-auto mb-3 transition-colors duration-300 ${
+                    className={`h-12 w-12 mx-auto mb-4 transition-all duration-300 ${
                       isConnected
-                        ? "text-green-400 group-hover:text-green-300"
-                        : "text-gray-400 group-hover:text-gray-300"
+                        ? "text-emerald-400 group-hover:text-emerald-300 drop-shadow-lg"
+                        : "text-slate-400 group-hover:text-slate-300"
                     }`}
                   />
-                  <div className="text-xs font-medium text-gray-300 uppercase tracking-wide">
-                    Server Status
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                    Network Status
                   </div>
                   <div
-                    className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+                    className={`text-3xl font-black mb-2 ${
                       isConnected
-                        ? "from-green-400 to-emerald-400"
-                        : "from-gray-400 to-gray-500"
+                        ? "bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent"
+                        : "text-slate-400"
                     }`}
                   >
-                    {isConnected ? "Online" : "Offline"}
+                    {isConnected ? "LIVE" : "OFF"}
                   </div>
                   <div
-                    className={`text-xs mt-1 ${
-                      isConnected ? "text-green-400" : "text-gray-500"
+                    className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                      isConnected
+                        ? "text-emerald-400 bg-emerald-500/20 border border-emerald-500/30"
+                        : "text-slate-500 bg-slate-700/50"
                     }`}
                   >
-                    {isConnected ? "Multiplayer Ready" : "Single Player"}
+                    {isConnected ? "MULTIPLAYER READY" : "SINGLE PLAYER"}
                   </div>
                 </div>
               </div>
@@ -565,6 +830,85 @@ export default function HomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Alert Dialogs */}
+      <AlertDialog open={showWalletAlert} onOpenChange={setShowWalletAlert}>
+        <AlertDialogContent className="bg-slate-900/95 border-2 border-purple-500/30 backdrop-blur-xl rounded-xl shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-3 text-xl font-bold text-white">
+              <Wallet className="h-6 w-6 text-purple-400" />
+              Wallet Connection Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300 text-base leading-relaxed">
+              You need to connect your Backpack wallet to pay the{" "}
+              <span className="font-bold text-yellow-400">0.001 GOR</span> entry
+              fee and join the battle on Gorbagana testnet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              onClick={() => {
+                toast.info("Connect your wallet", {
+                  description:
+                    "Please use the wallet button in the top-right corner",
+                  duration: 4000,
+                });
+              }}
+            >
+              Connect Wallet
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showOfflineAlert} onOpenChange={setShowOfflineAlert}>
+        <AlertDialogContent className="bg-slate-900/95 border-2 border-amber-500/30 backdrop-blur-xl rounded-xl shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-3 text-xl font-bold text-white">
+              <AlertTriangle className="h-6 w-6 text-amber-400" />
+              Server Connection Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300 text-base leading-relaxed">
+              Multiplayer mode requires an active server connection. The server
+              appears to be offline.
+              <br />
+              <br />
+              You can either:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>
+                  Switch to{" "}
+                  <strong className="text-cyan-400">Auto Select</strong> mode
+                </li>
+                <li>
+                  Play in <strong className="text-green-400">Bot Arena</strong>{" "}
+                  for offline practice
+                </li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 hover:bg-slate-600 text-white border-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700"
+              onClick={() => {
+                setPlayMode("auto");
+                toast.success("Switched to Auto Select", {
+                  description: "Will use bot arena while server is offline",
+                  duration: 3000,
+                });
+              }}
+            >
+              Switch to Auto Select
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
