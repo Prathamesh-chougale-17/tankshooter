@@ -19,6 +19,8 @@ interface GameOverData {
   survivalTime: number;
   cause: string;
   killedBy?: string;
+  winner?: string;
+  timeUp?: boolean;
 }
 
 interface GameOverScreenProps {
@@ -95,11 +97,21 @@ export function GameOverScreen({
             GAME OVER
           </DialogTitle>
           <DialogDescription className="text-gray-300">
-            {/* {gameOverData.cause} */}
-            {gameOverData.killedBy && (
-              <span className="text-red-300 text-sm mt-1">
+            {gameOverData.cause}
+            {gameOverData.killedBy && !gameOverData.timeUp && (
+              <div className="text-red-300 text-sm mt-1">
                 Destroyed by: <strong>{gameOverData.killedBy}</strong>
-              </span>
+              </div>
+            )}
+            {gameOverData.timeUp && gameOverData.winner && (
+              <div className="mt-2">
+                <div className="text-yellow-300 text-lg font-semibold">
+                  Winner: <strong>{gameOverData.winner}</strong>
+                </div>
+                <div className="text-sm text-gray-400 mt-1">
+                  Match ended after 3 minutes
+                </div>
+              </div>
             )}
           </DialogDescription>
         </DialogHeader>

@@ -50,6 +50,8 @@ interface GameOverData {
   survivalTime: number;
   cause: string;
   killedBy?: string;
+  winner?: string;
+  timeUp?: boolean;
 }
 
 export function GameCanvas({
@@ -72,6 +74,8 @@ export function GameCanvas({
     maxHealth: 1000,
     isRegenerating: false,
   });
+  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
+  const [timerActive, setTimerActive] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<
     | {
         tanks: Map<string, Tank>;
@@ -99,6 +103,39 @@ export function GameCanvas({
     isRegenerating: false,
   });
   const gameKey = 0; // Static key since we don't need re-rendering
+
+  // Timer reference to keep track of real-time values
+  const timerRef = useRef<{
+    startTime: number;
+    endTime: number;
+    lastSecondUpdate: number;
+    animationFrameId?: number;
+  }>({
+    startTime: Date.now(),
+    endTime: Date.now() + 180 * 1000,
+    lastSecondUpdate: 180,
+  });
+
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  };
+
+  // More precise time formatter with deciseconds for the final countdown
+  const formatPreciseTime = (seconds: number): string => {
+    if (seconds > 10) {
+      return formatTime(seconds);
+    }
+
+    // For the final 10 seconds, show tenths of seconds
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+
+    // Since our state is just an integer, we'll make the tenth digit pulse
+    // to create the illusion of tenth-second precision
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const { socket, isConnected, sendMessage } = useWebSocket();
 
@@ -191,7 +228,25 @@ export function GameCanvas({
 
   useEffect(() => {
     const cleanup = initializeGame();
-    return cleanup;
+
+    // Start timer when game initializes, with a small delay to ensure
+    // all game state is properly initialized first
+    setTimeout(() => {
+      console.log("Initial game timer activation");
+      setTimerActive(true);
+    }, 200);
+
+    // Cleanup function will stop the game engine and any timers
+    return () => {
+      if (cleanup) cleanup();
+
+      // Ensure timer is stopped when component unmounts
+      setTimerActive(false);
+      if (timerRef.current.animationFrameId) {
+        cancelAnimationFrame(timerRef.current.animationFrameId);
+        timerRef.current.animationFrameId = undefined;
+      }
+    };
   }, [initializeGame]);
 
   useEffect(() => {
@@ -300,7 +355,27 @@ export function GameCanvas({
   };
 
   const handlePlayAgain = () => {
-    // Reset all React state first
+    console.log("Play again - resetting game state");
+
+    // Reset timer first (important ordering)
+    setTimerActive(false); // Disable current timer
+    setTimeRemaining(180); // Reset to 3 minutes
+
+    // Cancel any active timer animation frame
+    if (timerRef.current.animationFrameId) {
+      cancelAnimationFrame(timerRef.current.animationFrameId);
+      console.log("Cancelled active timer animation frame");
+    }
+
+    // Clean reset of timer reference values
+    timerRef.current = {
+      startTime: 0, // This will trigger a fresh initialization in the timer effect
+      endTime: 0,
+      lastSecondUpdate: 180,
+      animationFrameId: undefined,
+    };
+
+    // Reset all React state
     setIsGameOver(false);
     setGameOverData(null);
     setGameStats({
@@ -330,7 +405,149 @@ export function GameCanvas({
     if (gameEngineRef.current) {
       gameEngineRef.current.restart();
     }
+
+    // Activate timer after state reset and a sufficient delay
+    // This ensures all cleanup has completed before starting a new timer
+    setTimeout(() => {
+      console.log("Activating new real-time timer");
+      setTimerActive(true);
+    }, 300); // Increased delay for better reliability
   };
+
+  // Use separate refs for values that shouldn't trigger timer restarts
+  const gameDataRef = useRef({
+    playerName,
+    gameStats,
+    leaderboardData,
+  });
+
+  // Keep these refs updated when their values change
+  useEffect(() => {
+    gameDataRef.current = {
+      playerName,
+      gameStats,
+      leaderboardData,
+    };
+  }, [playerName, gameStats, leaderboardData]);
+
+  // Real-time timer logic with precise countdown - optimized to prevent restarts
+  useEffect(() => {
+    // Only start a new timer if timer is activated and game is not over
+    if (isGameOver || !timerActive) {
+      return;
+    }
+
+    console.log("Timer initializing once");
+
+    // Initialize timer values when the timer starts (only happens once per game)
+    if (!timerRef.current.startTime || timerRef.current.startTime === 0) {
+      console.log(`Timer starting fresh: ${formatTime(180)}`);
+      timerRef.current = {
+        startTime: Date.now(),
+        endTime: Date.now() + 180 * 1000, // Always start with full 3 minutes (180 seconds)
+        lastSecondUpdate: 180,
+      };
+      setTimeRemaining(180); // Reset to full time
+    }
+
+    // Update timer function using requestAnimationFrame for smooth updates
+    const updateTimer = () => {
+      // Don't update if game is over or page is hidden
+      if (document.hidden || isGameOver) {
+        return;
+      }
+
+      const now = Date.now();
+      const remaining = Math.max(0, timerRef.current.endTime - now);
+      const remainingSeconds = Math.ceil(remaining / 1000);
+
+      // Update the state only when the second changes
+      if (remainingSeconds !== timerRef.current.lastSecondUpdate) {
+        timerRef.current.lastSecondUpdate = remainingSeconds;
+        setTimeRemaining(remainingSeconds);
+
+        // Log every 10 seconds or during final countdown
+        if (remainingSeconds % 10 === 0 || remainingSeconds <= 5) {
+          console.log(`Time remaining: ${formatTime(remainingSeconds)}`);
+        }
+
+        // Special effect for last 10 seconds
+        if (remainingSeconds === 10) {
+          console.log("Final countdown started!");
+        }
+      }
+
+      // Check if time's up
+      if (remaining <= 0) {
+        console.log("TIME'S UP!");
+
+        // Access the latest data from our refs
+        const {
+          playerName: currentPlayerName,
+          gameStats: currentStats,
+          leaderboardData: currentLeaderboard,
+        } = gameDataRef.current;
+
+        // Find the winner (highest score) from leaderboard
+        let currentWinner = currentPlayerName;
+        let highestScore = 0;
+
+        if (currentLeaderboard?.tanks) {
+          Object.values(currentLeaderboard.tanks).forEach((tank) => {
+            if (tank.score > highestScore) {
+              highestScore = tank.score;
+              currentWinner = tank.name;
+            }
+          });
+        }
+
+        // Game over with time up
+        handleGameOver({
+          finalScore: currentStats.score,
+          finalLevel: currentStats.level,
+          totalKills: currentStats.kills,
+          survivalTime: 180, // 3 minutes
+          cause: "Time's up! The match has ended.",
+          timeUp: true,
+          winner: currentWinner,
+        });
+        return;
+      }
+
+      // Continue the animation loop
+      timerRef.current.animationFrameId = requestAnimationFrame(updateTimer);
+    };
+
+    // Start the animation loop
+    timerRef.current.animationFrameId = requestAnimationFrame(updateTimer);
+
+    // Cleanup function
+    return () => {
+      if (timerRef.current.animationFrameId) {
+        cancelAnimationFrame(timerRef.current.animationFrameId);
+        console.log("Timer animation frame canceled");
+      }
+    };
+    // Only depend on isGameOver and timerActive - these are the only dependencies
+    // that should restart the timer
+  }, [isGameOver, timerActive, handleGameOver]);
+
+  // This effect was redundant - timer now starts in the initializeGame effect
+
+  // Reset the timer when the game is over
+  useEffect(() => {
+    if (isGameOver) {
+      // Stop the timer and ensure animation frame is canceled
+      setTimerActive(false);
+
+      // Extra safety: cancel any animation frames
+      if (timerRef.current.animationFrameId) {
+        cancelAnimationFrame(timerRef.current.animationFrameId);
+        timerRef.current.animationFrameId = undefined;
+        console.log("Timer animation frame canceled on game over");
+      }
+    }
+  }, [isGameOver]);
 
   const healthPercentage = (gameStats.health / gameStats.maxHealth) * 100;
 
@@ -368,6 +585,37 @@ export function GameCanvas({
             <Card className="bg-black/50 border-white/20 px-4 py-2">
               <div className="text-white text-sm">
                 <div className="flex items-center gap-4">
+                  <div
+                    className={`text-center font-mono px-3 py-1 rounded-md flex items-center ${
+                      timeRemaining <= 5
+                        ? "bg-red-700/70 text-white animate-bounce border-2 border-red-400 shadow-lg shadow-red-500/50"
+                        : timeRemaining <= 10
+                        ? "bg-red-600/50 text-red-100 animate-pulse border-2 border-red-500"
+                        : timeRemaining < 30
+                        ? "bg-red-600/30 text-red-300 animate-pulse border border-red-500/50"
+                        : timeRemaining < 60
+                        ? "bg-yellow-600/30 text-yellow-300 border border-yellow-500/50"
+                        : "bg-blue-600/30 text-blue-300 border border-blue-500/50"
+                    }`}
+                  >
+                    {timeRemaining <= 5 ? (
+                      <>
+                        <span className="animate-ping mr-1 text-red-300">
+                          ⏱️
+                        </span>
+                        <span className="font-bold text-lg">
+                          {formatPreciseTime(timeRemaining)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-bold">
+                        ⏱️{" "}
+                        {timeRemaining <= 10
+                          ? formatPreciseTime(timeRemaining)
+                          : formatTime(timeRemaining)}
+                      </span>
+                    )}
+                  </div>
                   <span>
                     Level: <strong>{gameStats.level}</strong>
                   </span>
