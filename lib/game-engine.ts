@@ -1,3 +1,5 @@
+import { getSoundManager } from "./sound-manager";
+
 interface Vector2 {
   x: number;
   y: number;
@@ -672,6 +674,9 @@ export class GameEngine {
     // Update level without changing health
     if (newLevel > player.level) {
       player.level = newLevel;
+      // Play level up sound effect
+      const soundMgr = getSoundManager();
+      soundMgr?.playSound("levelUp");
     }
 
     this.options.onStatsUpdate({
@@ -686,6 +691,10 @@ export class GameEngine {
 
   private triggerGameOver(killedBy?: string) {
     if (this.isGameOver) return; // Prevent multiple game over triggers
+
+    // Play game over sound effect
+    const soundMgr = getSoundManager();
+    soundMgr?.playSound("gameOver");
 
     // In competition mode, check if this should trigger competition end
     if (this.isCompetitionMode) {
@@ -980,6 +989,10 @@ export class GameEngine {
     this.botSpawnTimer = Date.now();
     this.lastTime = 0; // Reset time tracking
 
+    // Start background music
+    const soundMgr = getSoundManager();
+    soundMgr?.playBackgroundMusic();
+
     // Competition mode initialization
     if (this.isCompetitionMode) {
       this.competitionStartTime = Date.now();
@@ -1120,8 +1133,14 @@ export class GameEngine {
           // Hit!
           tank.health -= bullet.damage;
 
+          // Play hit sound effect
+          const soundMgr = getSoundManager();
+          soundMgr?.playSound("hit");
+
           if (tank.health <= 0) {
-            // Tank destroyed
+            // Tank destroyed - play explosion sound
+            soundMgr?.playSound("explosion");
+
             const shooter = this.gameState.tanks.get(bullet.ownerId);
 
             // Track kill time for competition mode
@@ -1370,6 +1389,10 @@ export class GameEngine {
     };
 
     this.gameState.bullets.push(bullet);
+
+    // Play shoot sound effect
+    const soundMgr = getSoundManager();
+    soundMgr?.playSound("shoot");
 
     // Send bullet to server for multiplayer sync
     this.sendToServer({

@@ -15,8 +15,9 @@ import { payGameGasFee } from "@/lib/gas-payment";
 import { useWalletUiSigner } from "@/components/solana/use-wallet-ui-signer";
 import { AccountBalanceCustomRpc } from "@/components/account/account-ui";
 import { address } from "gill";
-import { Gamepad2, Users, Trophy, Settings } from "lucide-react";
+import { Gamepad2, Users, Trophy, Settings, Volume2 } from "lucide-react";
 import { useGetBalanceFromCustomRpcQuery } from "@/components/account/account-data-access";
+import { SoundControlPanel } from "@/components/sound-control-panel";
 
 interface GameMenuProps {
   onStartGame: (
@@ -31,6 +32,7 @@ export function GameMenu({ onStartGame }: GameMenuProps) {
   const [selectedTankClass, setSelectedTankClass] = useState("basic");
   const [gameMode, setGameMode] = useState("ffa");
   const [isPayingGas, setIsPayingGas] = useState(false);
+  const [showSoundControls, setShowSoundControls] = useState(false);
 
   const { account } = useWalletUi();
   const txSigner = useWalletUiSigner();
@@ -249,6 +251,19 @@ export function GameMenu({ onStartGame }: GameMenuProps) {
               </div>
             </div>{" "}
             <div
+              className="animate-fade-in mb-4"
+              style={{ animationDelay: "0.5s", animationFillMode: "both" }}
+            >
+              <Button
+                onClick={() => setShowSoundControls(!showSoundControls)}
+                variant="outline"
+                className="w-full bg-white/10 border-purple-500/30 text-white hover:bg-white/15 transition-all duration-300 py-3 rounded-lg flex items-center justify-center gap-2"
+              >
+                <Volume2 className="h-5 w-5" />
+                Sound Controls
+              </Button>
+            </div>
+            <div
               className="animate-fade-in"
               style={{ animationDelay: "0.6s", animationFillMode: "both" }}
             >
@@ -324,6 +339,13 @@ export function GameMenu({ onStartGame }: GameMenuProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sound Control Panel */}
+      {showSoundControls && (
+        <div className="absolute top-4 right-4 pointer-events-auto">
+          <SoundControlPanel onClose={() => setShowSoundControls(false)} />
+        </div>
+      )}
     </div>
   );
 }

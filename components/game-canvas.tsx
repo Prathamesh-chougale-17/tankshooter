@@ -11,6 +11,8 @@ import { UpgradePanel } from "@/components/upgrade-panel";
 import { Leaderboard } from "@/components/leaderboard";
 import { GameOverScreen } from "@/components/game-over-screen";
 import { Minimap } from "@/components/minimap";
+import { SoundControlPanel } from "@/components/sound-control-panel";
+import { getSoundManager } from "@/lib/sound-manager";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -18,6 +20,7 @@ import {
   TrendingUp,
   Trophy,
   Heart,
+  Volume2,
 } from "lucide-react";
 
 interface Tank {
@@ -75,6 +78,7 @@ export function GameCanvas({
   const [showChat, setShowChat] = useState(false);
   const [showUpgrades, setShowUpgrades] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(true);
+  const [showSoundControls, setShowSoundControls] = useState(false);
   const [gameStats, setGameStats] = useState({
     score: 0,
     level: 1,
@@ -158,6 +162,23 @@ export function GameCanvas({
   };
 
   const { socket, isConnected, sendMessage } = useWebSocket();
+
+  // Initialize sound system
+  useEffect(() => {
+    const initializeSounds = async () => {
+      try {
+        const soundMgr = getSoundManager();
+        if (soundMgr) {
+          await soundMgr.initializeSounds();
+          console.log("Sound system initialized");
+        }
+      } catch (error) {
+        console.warn("Failed to initialize sound system:", error);
+      }
+    };
+
+    initializeSounds();
+  }, []);
 
   // Connection status notifications
   useEffect(() => {
@@ -808,6 +829,14 @@ export function GameCanvas({
             >
               <MessageCircle className="h-4 w-4" />
             </Button>
+            <Button
+              onClick={() => setShowSoundControls(!showSoundControls)}
+              variant="outline"
+              size="sm"
+              className="bg-black/50 border-white/20 text-white hover:bg-black/70"
+            >
+              <Volume2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -919,6 +948,12 @@ export function GameCanvas({
       {!isGameOver && showUpgrades && (
         <div className="absolute top-20 left-80 pointer-events-auto">
           <UpgradePanel playerStats={gameStats} onUpgrade={handleUpgrade} />
+        </div>
+      )}
+
+      {!isGameOver && showSoundControls && (
+        <div className="absolute top-20 left-4 pointer-events-auto">
+          <SoundControlPanel onClose={() => setShowSoundControls(false)} />
         </div>
       )}
 
