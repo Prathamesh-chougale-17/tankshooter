@@ -33,6 +33,7 @@ interface GameOverScreenProps {
   gameOverData: GameOverData;
   onPlayAgain: () => void;
   onBackToMenu: () => void;
+  onClaimPrize?: () => void;
   open: boolean;
 }
 
@@ -40,9 +41,11 @@ export function GameOverScreen({
   gameOverData,
   onPlayAgain,
   onBackToMenu,
+  onClaimPrize,
   open,
 }: GameOverScreenProps) {
   const [isRestarting, setIsRestarting] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -51,8 +54,45 @@ export function GameOverScreen({
   };
 
   const getPerformanceRating = () => {
-    const { finalScore, totalKills, survivalTime } = gameOverData;
+    const {
+      finalScore,
+      totalKills,
+      survivalTime,
+      isCompetitionMode,
+      playerWon,
+      playerQualified,
+    } = gameOverData;
 
+    // Competition mode has different performance criteria
+    if (isCompetitionMode) {
+      if (playerWon) {
+        return {
+          rating: "Champion",
+          color: "text-yellow-400",
+          description: "You won the competition!",
+        };
+      } else if (playerQualified) {
+        return {
+          rating: "Qualified",
+          color: "text-green-400",
+          description: "Met the minimum requirements",
+        };
+      } else if (totalKills > 0) {
+        return {
+          rating: "Competitor",
+          color: "text-blue-400",
+          description: "Good effort in competition",
+        };
+      } else {
+        return {
+          rating: "Eliminated",
+          color: "text-red-400",
+          description: "Better luck next time",
+        };
+      }
+    }
+
+    // Original performance rating for non-competition mode
     if (finalScore > 10000 || totalKills > 20 || survivalTime > 300) {
       return {
         rating: "Excellent",
@@ -247,24 +287,65 @@ export function GameOverScreen({
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
-            <Button
-              onClick={handlePlayAgain}
-              disabled={isRestarting}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 disabled:opacity-50"
-            >
-              <RotateCcw
-                className={`mr-2 h-4 w-4 ${isRestarting ? "animate-spin" : ""}`}
-              />
-              {isRestarting ? "Restarting..." : "Play Again"}
-            </Button>
-            <Button
-              onClick={onBackToMenu}
-              variant="outline"
-              className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20 font-bold py-2"
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Main Menu
-            </Button>
+            {gameOverData.isCompetitionMode ? (
+              // Competition mode buttons
+              gameOverData.playerWon && gameOverData.playerQualified ? (
+                // Winner gets claim prize button only
+                <Button
+                  onClick={() => {
+                    setIsClaiming(true);
+                    if (onClaimPrize) {
+                      onClaimPrize();
+                    }
+                    setTimeout(() => setIsClaiming(false), 2000);
+                  }}
+                  disabled={isClaiming}
+                  className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 disabled:opacity-50 animate-pulse"
+                >
+                  <Trophy
+                    className={`mr-2 h-4 w-4 ${
+                      isClaiming ? "animate-spin" : ""
+                    }`}
+                  />
+                  {isClaiming
+                    ? "Claiming Prize..."
+                    : `Claim ${gameOverData.prizeAmount} GOR Prize`}
+                </Button>
+              ) : (
+                // Non-winners get main menu button only
+                <Button
+                  onClick={onBackToMenu}
+                  className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 font-bold py-2"
+                >
+                  <Home className="mr-2 h-4 w-4" />
+                  Main Menu
+                </Button>
+              )
+            ) : (
+              // Regular mode buttons
+              <>
+                <Button
+                  onClick={handlePlayAgain}
+                  disabled={isRestarting}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 disabled:opacity-50"
+                >
+                  <RotateCcw
+                    className={`mr-2 h-4 w-4 ${
+                      isRestarting ? "animate-spin" : ""
+                    }`}
+                  />
+                  {isRestarting ? "Restarting..." : "Play Again"}
+                </Button>
+                <Button
+                  onClick={onBackToMenu}
+                  variant="outline"
+                  className="flex-1 bg-white/10 border-white/20 text-white hover:bg-white/20 font-bold py-2"
+                >
+                  <Home className="mr-2 h-4 w-4" />
+                  Main Menu
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Keyboard shortcut hint */}

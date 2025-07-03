@@ -11,6 +11,7 @@ import { UpgradePanel } from "@/components/upgrade-panel";
 import { Leaderboard } from "@/components/leaderboard";
 import { GameOverScreen } from "@/components/game-over-screen";
 import { Minimap } from "@/components/minimap";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   MessageCircle,
@@ -37,6 +38,7 @@ interface ChatMessage {
 
 interface GameCanvasProps {
   playerName: string;
+  playerAddress: string;
   tankClass: string;
   gameMode: string;
   playMode: "multiplayer" | "bots" | "competition";
@@ -62,6 +64,7 @@ interface GameOverData {
 
 export function GameCanvas({
   playerName,
+  playerAddress,
   tankClass,
   gameMode,
   playMode,
@@ -382,6 +385,55 @@ export function GameCanvas({
       });
     } catch (error) {
       console.error("Chat error:", error);
+    }
+  };
+
+  const handleClaimPrize = async () => {
+    console.log("Prize claiming initiated...");
+
+    try {
+      // Call the server-side API to handle the prize transfer
+      const response = await fetch("/api/claim-prize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playerName: playerName,
+          playerWallet: playerAddress, // TODO: Get from actual wallet connection
+          prizeAmount: gameOverData?.prizeAmount || 1.0,
+          competitionId: Date.now().toString(), // Simple competition ID for tracking
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        console.log(
+          "Prize transfer successful! Transaction signature:",
+          result.signature
+        );
+        console.log("Explorer link:", result.explorerLink);
+        toast.success(
+          `Prize of ${result.prizeAmount} GOR claimed successfully!`,
+          {
+            description: "Transaction confirmed on Solana blockchain",
+            duration: 5000,
+          }
+        );
+      } else {
+        console.error("Prize claim failed:", result.error);
+        toast.error("Failed to claim prize", {
+          description: result.error || "Please try again later",
+          duration: 5000,
+        });
+      }
+    } catch (error) {
+      console.error("Error claiming prize:", error);
+      toast.error("Failed to claim prize", {
+        description: "Network error - please try again later",
+        duration: 5000,
+      });
     }
   };
 
@@ -953,6 +1005,7 @@ export function GameCanvas({
           gameOverData={gameOverData}
           onPlayAgain={handlePlayAgain}
           onBackToMenu={onBackToMenu}
+          onClaimPrize={handleClaimPrize}
           open={isGameOver}
         />
       )}

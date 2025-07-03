@@ -301,6 +301,7 @@ export default function HomePage() {
     return (
       <GameCanvas
         playerName={playerName}
+        playerAddress={account?.address || ""}
         tankClass={selectedTankClass}
         gameMode={gameMode}
         playMode={effectivePlayMode}
