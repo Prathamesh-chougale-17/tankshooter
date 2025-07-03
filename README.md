@@ -154,7 +154,7 @@ tankshooter/
 
 ### Frontend Stack
 
-- **Framework**: Next.js 14 with TypeScript
+- **Framework**: Next.js 15 with TypeScript
 - **Styling**: Tailwind CSS with custom animations
 - **UI Library**: Radix UI components
 - **State Management**: React hooks and Context
