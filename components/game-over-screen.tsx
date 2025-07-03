@@ -46,6 +46,7 @@ export function GameOverScreen({
 }: GameOverScreenProps) {
   const [isRestarting, setIsRestarting] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [prizeClaimed, setPrizeClaimed] = useState(false);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -244,14 +245,28 @@ export function GameOverScreen({
 
               {/* Prize status */}
               {gameOverData.playerWon && gameOverData.playerQualified ? (
-                <div className="bg-green-500/20 border-2 border-green-500/50 rounded-lg p-3 text-center animate-pulse">
+                <div
+                  className={`border-2 rounded-lg p-3 text-center ${
+                    prizeClaimed
+                      ? "bg-green-500/30 border-green-500/70 animate-none"
+                      : "bg-green-500/20 border-green-500/50 animate-pulse"
+                  }`}
+                >
                   <div className="text-xl text-green-400 font-bold mb-2 flex items-center justify-center">
                     <Trophy className="h-5 w-5 mr-2 text-yellow-400" />
                     You won {gameOverData.prizeAmount} GOR!
                     <Trophy className="h-5 w-5 ml-2 text-yellow-400" />
                   </div>
-                  <div className="text-sm text-green-300 bg-green-500/10 p-2 rounded">
-                    Congratulations! Prize has been transferred to your wallet
+                  <div
+                    className={`text-sm p-2 rounded ${
+                      prizeClaimed
+                        ? "text-green-200 bg-green-500/20"
+                        : "text-green-300 bg-green-500/10"
+                    }`}
+                  >
+                    {prizeClaimed
+                      ? "✅ Prize successfully claimed and transferred to your wallet!"
+                      : "Congratulations! Prize has been transferred to your wallet"}
                   </div>
                 </div>
               ) : gameOverData.playerQualified ? (
@@ -289,15 +304,23 @@ export function GameOverScreen({
           <div className="flex gap-3 pt-2">
             {gameOverData.isCompetitionMode ? (
               // Competition mode buttons
-              gameOverData.playerWon && gameOverData.playerQualified ? (
-                // Winner gets claim prize button only
+              gameOverData.playerWon &&
+              gameOverData.playerQualified &&
+              !prizeClaimed ? (
+                // Winner gets claim prize button only (if not claimed yet)
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     setIsClaiming(true);
                     if (onClaimPrize) {
-                      onClaimPrize();
+                      try {
+                        await onClaimPrize();
+                        // Set prize as claimed after successful claim
+                        setPrizeClaimed(true);
+                      } catch (error) {
+                        console.error("Prize claim failed:", error);
+                      }
                     }
-                    setTimeout(() => setIsClaiming(false), 2000);
+                    setIsClaiming(false);
                   }}
                   disabled={isClaiming}
                   className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 disabled:opacity-50 animate-pulse"
@@ -312,13 +335,13 @@ export function GameOverScreen({
                     : `Claim ${gameOverData.prizeAmount} GOR Prize`}
                 </Button>
               ) : (
-                // Non-winners get main menu button only
+                // Non-winners or winners who already claimed get main menu button only
                 <Button
                   onClick={onBackToMenu}
                   className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20 font-bold py-2"
                 >
                   <Home className="mr-2 h-4 w-4" />
-                  Main Menu
+                  {prizeClaimed ? "Prize Claimed - Main Menu" : "Main Menu"}
                 </Button>
               )
             ) : (

@@ -389,8 +389,6 @@ export function GameCanvas({
   };
 
   const handleClaimPrize = async () => {
-    console.log("Prize claiming initiated...");
-
     try {
       // Call the server-side API to handle the prize transfer
       const response = await fetch("/api/claim-prize", {
@@ -414,13 +412,10 @@ export function GameCanvas({
           result.signature
         );
         console.log("Explorer link:", result.explorerLink);
-        toast.success(
-          `Prize of ${result.prizeAmount} GOR claimed successfully!`,
-          {
-            description: "Transaction confirmed on Solana blockchain",
-            duration: 5000,
-          }
-        );
+        toast.success(`Prize of 1 GOR claimed successfully!`, {
+          description: "Transaction confirmed on Solana blockchain",
+          duration: 5000,
+        });
       } else {
         console.error("Prize claim failed:", result.error);
         toast.error("Failed to claim prize", {
