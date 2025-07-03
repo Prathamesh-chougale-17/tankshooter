@@ -8,8 +8,6 @@
 
 **An epic multiplayer tank warfare game built on the Gorbagana blockchain, featuring real-time PvP battles, tournament competitions with GOR prizes, advanced AI opponents, and seamless Web3 integration with sub-second finality.**
 
-![Tank Shooter](https://via.placeholder.com/800x400/1a1a2e/ffffff?text=Tank+Shooter+Battle+Arena+%E2%80%A2+Gorbagana+Powered)
-
 ## 🌟 Game Overview
 
 Tank Shooter is a fast-paced multiplayer battle arena that showcases the power of Gorbagana's sub-second finality through engaging real-time gameplay. Command your tank, battle opponents, and compete for GOR prizes in this blockchain-powered gaming experience that combines classic arcade action with cutting-edge Web3 technology.
