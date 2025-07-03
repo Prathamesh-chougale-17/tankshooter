@@ -181,7 +181,7 @@ tankshooter/
 - **Scalability**: Supports multiple concurrent battles
 - **Bot AI**: Intelligent computer opponents with difficulty levels
 
-## � Audio System
+## 🔊 Audio System
 
 ### Sound Effects
 
@@ -225,7 +225,7 @@ tankshooter/
 
 ### Screenshots
 
-![Home Page](screenshots/image.png)
+![Home Page](screenshots/home.png)
 
 ## 🔧 Advanced Features
 
@@ -370,15 +370,7 @@ pnpm type-check   # TypeScript validation
 
 ### 📸 Screenshots
 
-![Add gameplay screenshots here showing:
-
-- Main menu with connection status
-- Tank selection and game modes
-- Live multiplayer battle
-- Competition tournament interface
-- Game over screen with prize claiming
-- Sound control panel
-- Leaderboard and statistics](screenshots/game.png)
+![game](screenshots/game.png)
 
 ### 🎮 Gameplay Videos
 
@@ -388,84 +380,6 @@ pnpm type-check   # TypeScript validation
 - Multiplayer battles
 - Tank class differences
 - Sound effects and UI features]
-
-## � Social Media Promotion
-
-### 🐦 Twitter Post Templates
-
-**Competition Mode Focus:**
-
-```text
-🎮 TANK WARS ON @Gorbagana_chain! 🚀
-
-🏆 NEW: Competition Mode is LIVE!
-• 0.5 $GOR entry fee
-• 1 $GOR winner prize  
-• 8-player tournament battles
-• Real-time blockchain transactions
-
-Ready to dominate? Lock and load! 💥
-
-#GorbaganaTestnet @sarv_shaktimaan @lex_node
-```
-
-**Multiplayer Features:**
-
-```text
-⚡ Just deployed Tank Shooter on @Gorbagana_chain testnet!
-
-🔥 What's inside:
-✓ Real-time multiplayer (10 players/room)
-✓ 4 tank classes with unique abilities
-✓ Competition mode with $GOR prizes
-✓ Sub-second transaction finality
-✓ @backpack wallet integration
-
-#Web3Gaming #GorbaganaTestnet @sarv_shaktimaan @lex_node
-[Demo URL]
-```
-
-**Technical Achievement:**
-
-```text
-🚀 Built something epic on @Gorbagana_chain!
-
-Tank Shooter features:
-⚡ Sub-second blockchain finality
-🎮 WebSocket multiplayer (60fps)
-🤖 Advanced AI with 3 difficulty levels
-🔊 Full audio system with spatial sound
-💰 Native $GOR token integration
-
-The future of Web3 gaming is here! 
-
-#GorbaganaTestnet #Web3 @sarv_shaktimaan @lex_node
-[Demo URL]
-```
-
-**Community Engagement:**
-
-```text
-🎯 WHO'S READY FOR TANK BATTLES? 
-
-@Gorbagana_chain Tank Shooter is live with:
-• Competition tournaments (1 $GOR prizes!)
-• Real-time multiplayer battles  
-• Training mode against AI bots
-• Beautiful UI with tank warfare theme
-
-Drop your tank commander name below! 👇
-
-#GorbaganaTestnet @sarv_shaktimaan @lex_node
-```
-
-### 📋 Social Media Strategy
-
-1. **Launch Week**: Focus on core features and gameplay
-2. **Competition Promotion**: Highlight tournament mode and prizes  
-3. **Technical Showcase**: Emphasize blockchain integration and performance
-4. **Community Building**: Encourage user-generated content and battles
-5. **Achievement Posts**: Share development milestones and player statistics
 
 ## 🤝 Contributing
 
