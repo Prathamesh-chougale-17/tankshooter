@@ -7,7 +7,7 @@ interface WebSocketMessage {
   [key: string]: unknown;
 }
 
-export function useWebSocket(url = "ws://localhost:3001/ws") {
+export function useWebSocket(url = "wss://tankshooter.onrender.com/ws") {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
