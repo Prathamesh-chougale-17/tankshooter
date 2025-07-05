@@ -2,13 +2,16 @@
   "name": "tankshooter",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "server": "tsx server.ts",
-    "server:dev": "tsx watch server.ts"
+    "server:dev": "tsx watch server.ts",
+    "server:js": "node server.js",
+    "server:js:dev": "node --watch server.js"
   },
   "dependencies": {
     "@gorbagana/web3.js": "^1.0.1",
