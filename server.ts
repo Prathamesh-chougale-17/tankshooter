@@ -86,7 +86,7 @@ interface ClientConnection {
 // Server state
 const gameRooms = new Map<string, GameRoom>();
 const clients = new Map<string, ClientConnection>();
-const PORT = 3001;
+const PORT = 10000;
 
 // Create HTTP server
 const server = createServer();
